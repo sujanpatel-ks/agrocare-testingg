@@ -1,0 +1,5 @@
+{
+  "name": "AgroCare AI",
+  "description": "Smart farming assistant for crop diagnosis, market prices, and community advice.",
+  "requestFramePermissions": ["camera", "geolocation"]
+}
