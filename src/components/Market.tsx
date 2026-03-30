@@ -1,8 +1,48 @@
-import React, { useState, useMemo } from 'react';
-import { ArrowLeft, Bell, Search, Mic, MapPin, Wheat, Heart, TrendingUp, TrendingDown, Minus, Store, Filter, X } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ArrowLeft, Bell, Search, Mic, MapPin, Wheat, Heart, TrendingUp, TrendingDown, Minus, Store, Filter, X, AlertCircle, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CROP_PRICES } from '../constants';
+import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
+import { toast } from 'sonner';
 import { CropPrice, Language } from '../types';
+import { fetchKarnatakaMarketPrices } from '../services/marketApi';
+
+const WATCHLIST_CROPS = [
+  { id: 'w1', name: 'Wheat', nameHi: 'गेहूं', price: 2250, change: 45, changePercent: 2.0, trend: 'up', icon: '🌾' },
+  { id: 'w2', name: 'Soybean', nameHi: 'सोयाबीन', price: 4800, change: -120, changePercent: -2.4, trend: 'down', icon: '🫘' },
+  { id: 'w3', name: 'Onion', nameHi: 'प्याज', price: 1800, change: 150, changePercent: 9.1, trend: 'up', icon: '🧅' },
+  { id: 'w4', name: 'Potato', nameHi: 'आलू', price: 1200, change: 20, changePercent: 1.6, trend: 'up', icon: '🥔' },
+];
+
+const ARBITRAGE_OPPORTUNITY = {
+  cropName: 'Tomato',
+  localMandi: 'Pune APMC',
+  localPrice: 1200,
+  targetMandi: 'Mumbai Vashi',
+  targetPrice: 1800,
+  difference: 600,
+  distance: '140 km',
+  profitMargin: '50%'
+};
+
+const getMockHistoricalData = (price: number, trend: string) => {
+  const base = price;
+  if (trend === 'up') {
+    return [
+      { price: base * 0.9 }, { price: base * 0.92 }, { price: base * 0.91 },
+      { price: base * 0.95 }, { price: base * 0.94 }, { price: base * 0.98 }, { price: base }
+    ];
+  } else if (trend === 'down') {
+    return [
+      { price: base * 1.1 }, { price: base * 1.08 }, { price: base * 1.09 },
+      { price: base * 1.05 }, { price: base * 1.06 }, { price: base * 1.02 }, { price: base }
+    ];
+  } else {
+    return [
+      { price: base * 0.99 }, { price: base * 1.01 }, { price: base * 0.98 },
+      { price: base * 1.02 }, { price: base * 0.99 }, { price: base * 1.01 }, { price: base }
+    ];
+  }
+};
 
 interface MarketProps {
   onBack: () => void;
@@ -19,11 +59,103 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [sortBy, setSortBy] = useState<SortOption>('none');
   const [showFilters, setShowFilters] = useState(false);
+  const [crops, setCrops] = useState<CropPrice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [alerts, setAlerts] = useState<Record<string, { threshold: number, direction: 'above' | 'below' }>>({});
+  const [alertModalOpen, setAlertModalOpen] = useState(false);
+  const [selectedCropForAlert, setSelectedCropForAlert] = useState<CropPrice | null>(null);
+  const [alertThreshold, setAlertThreshold] = useState<string>('');
+  const [alertDirection, setAlertDirection] = useState<'above' | 'below'>('above');
 
   const categories: Category[] = ['All', 'Grains', 'Vegetables', 'Oilseeds', 'Fruits'];
 
+  const fetchCrops = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchKarnatakaMarketPrices();
+      setCrops(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCrops();
+  }, []);
+
+  // Simulate live price updates
+  useEffect(() => {
+    if (crops.length === 0) return;
+    
+    const interval = setInterval(() => {
+      setCrops(prevCrops => prevCrops.map(crop => {
+        // Randomly change price by -1% to +1%
+        const changeFactor = 1 + (Math.random() * 0.02 - 0.01);
+        const newPrice = Math.round(crop.price * changeFactor);
+        const change = newPrice - crop.price;
+        const changePercent = Number(((change / crop.price) * 100).toFixed(1));
+        
+        return {
+          ...crop,
+          price: newPrice,
+          change: crop.change + change,
+          changePercent: Number((crop.changePercent + changePercent).toFixed(1)),
+          trend: change > 0 ? 'up' : change < 0 ? 'down' : crop.trend
+        };
+      }));
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [crops.length]);
+
+  // Check alerts
+  useEffect(() => {
+    crops.forEach(crop => {
+      const alert = alerts[crop.id];
+      if (alert) {
+        if (alert.direction === 'above' && crop.price >= alert.threshold) {
+          toast.success(`Price Alert: ${crop.name} has crossed above ₹${alert.threshold}! Current price: ₹${crop.price}`);
+          setAlerts(prev => {
+            const newAlerts = { ...prev };
+            delete newAlerts[crop.id];
+            return newAlerts;
+          });
+        } else if (alert.direction === 'below' && crop.price <= alert.threshold) {
+          toast.success(`Price Alert: ${crop.name} has dropped below ₹${alert.threshold}! Current price: ₹${crop.price}`);
+          setAlerts(prev => {
+            const newAlerts = { ...prev };
+            delete newAlerts[crop.id];
+            return newAlerts;
+          });
+        }
+      }
+    });
+  }, [crops, alerts]);
+
+  const handleSetAlert = () => {
+    if (!selectedCropForAlert || !alertThreshold) return;
+    
+    setAlerts(prev => ({
+      ...prev,
+      [selectedCropForAlert.id]: {
+        threshold: Number(alertThreshold),
+        direction: alertDirection
+      }
+    }));
+    
+    toast.success(`Alert set for ${selectedCropForAlert.name} ${alertDirection} ₹${alertThreshold}`);
+    setAlertModalOpen(false);
+    setSelectedCropForAlert(null);
+    setAlertThreshold('');
+  };
+
   const filteredCrops = useMemo(() => {
-    let result = CROP_PRICES.filter((crop) => {
+    let result = crops.filter((crop) => {
       const matchesSearch = crop.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            crop.nameHi.includes(searchQuery);
       const matchesCategory = selectedCategory === 'All' || crop.category === selectedCategory;
@@ -45,29 +177,32 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
     }
 
     return result;
-  }, [searchQuery, selectedCategory, priceRange, sortBy]);
+  }, [crops, searchQuery, selectedCategory, priceRange, sortBy]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-soil">
+    <div className="flex flex-col min-h-[100dvh] bg-soil">
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 pt-12 pb-4 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <button onClick={onBack} className="flex items-center justify-center w-10 h-10 rounded-full bg-soil text-earth hover:bg-gray-200 transition-colors">
+      <header className="bg-primary-dark text-white px-5 pt-12 pb-6 rounded-b-[24px] shadow-lg z-20 relative overflow-hidden shrink-0">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-primary/20 rounded-full -ml-12 -mb-12 blur-2xl"></div>
+
+        <div className="flex items-center justify-between gap-4 relative z-10">
+          <button onClick={onBack} className="flex items-center justify-center w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors backdrop-blur-sm">
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1 text-center">
-            <h1 className="text-xl font-bold tracking-tight text-earth">Market Prices</h1>
-            <p className="text-sm font-medium text-gray-500">मंडी भाव</p>
+            <h1 className="text-xl font-black tracking-wide text-white">Market Prices</h1>
+            <p className="text-xs font-bold text-green-200/80 uppercase tracking-widest mt-0.5">मंडी भाव</p>
           </div>
-          <button className="flex items-center justify-center w-10 h-10 rounded-full bg-soil text-earth hover:bg-gray-200 transition-colors relative">
+          <button className="flex items-center justify-center w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors backdrop-blur-sm relative">
             <Bell size={20} />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+            <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-primary-dark"></span>
           </button>
         </div>
       </header>
 
       {/* Search & Filter */}
-      <div className="px-4 pt-4 pb-2 bg-white sticky top-[88px] z-10 shadow-sm rounded-b-2xl">
+      <div className="px-4 pt-4 pb-2 bg-soil sticky top-0 z-10">
         <div className="flex gap-2 mb-4">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -180,28 +315,104 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
 
       {/* Main Content */}
       <main className="flex-1 p-4 pb-32 space-y-4">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-bold text-earth">
-            {searchQuery || selectedCategory !== 'All' ? 'Search Results' : 'Trending Crops'} 
-            <span className="text-sm font-normal text-gray-500 ml-1">| आज के भाव</span>
-          </h2>
-          <p className="text-xs text-gray-500 font-medium">{filteredCrops.length} items found</p>
-        </div>
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <motion.div 
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full mb-4"
+            />
+            <p className="text-gray-500 font-medium">Loading market prices...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center bg-white rounded-3xl border border-red-100 shadow-sm">
+            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-500 mb-4">
+              <AlertCircle size={32} />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Oops! Something went wrong</h3>
+            <p className="text-gray-500 mb-6">We couldn't fetch the latest market prices. Please check your internet connection and try again.</p>
+            <button 
+              onClick={fetchCrops}
+              className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-bold hover:bg-primary-dark transition-colors shadow-md shadow-primary/20"
+            >
+              <RefreshCw size={18} />
+              Retry
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* NEW: My Watchlist */}
+            {(!searchQuery && selectedCategory === 'All') && (
+              <div className="mb-6">
+                <h2 className="text-lg font-bold text-earth mb-3">My Watchlist</h2>
+                <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-2 -mx-4 px-4">
+                  {WATCHLIST_CROPS.map(crop => (
+                    <div key={crop.id} className="min-w-[140px] bg-white p-4 rounded-2xl shadow-sm border border-gray-100 shrink-0">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-2xl">{crop.icon}</span>
+                        <div className={`flex items-center text-xs font-bold ${crop.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+                          {crop.trend === 'up' ? <TrendingUp size={12} className="mr-0.5" /> : <TrendingDown size={12} className="mr-0.5" />}
+                          {crop.changePercent}%
+                        </div>
+                      </div>
+                      <h3 className="font-bold text-earth text-sm">{crop.name}</h3>
+                      <p className="text-lg font-bold text-earth mt-1">₹{crop.price}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        <AnimatePresence mode="popLayout">
-          {filteredCrops.length > 0 ? (
-            filteredCrops.map((crop, index) => (
-              <motion.div 
-                layout
-                key={crop.id} 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ delay: index * 0.05 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => onSelectCrop(crop)}
-                className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-shadow cursor-pointer"
-              >
+            {/* NEW: Arbitrage Opportunities */}
+            {(!searchQuery && selectedCategory === 'All') && (
+              <div className="mb-6">
+                <h2 className="text-lg font-bold text-earth mb-3">Arbitrage Opportunities</h2>
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 relative overflow-hidden shadow-sm">
+                  <div className="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider shadow-sm">
+                    Smart Insight
+                  </div>
+                  <div className="flex items-start gap-3 mt-2">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                      <MapPin size={24} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-blue-900 text-base mb-1">Sell {ARBITRAGE_OPPORTUNITY.cropName} in {ARBITRAGE_OPPORTUNITY.targetMandi}</h3>
+                      <p className="text-sm text-blue-800 mb-3 leading-snug">
+                        Prices are <span className="font-bold text-green-700">+₹{ARBITRAGE_OPPORTUNITY.difference}/q</span> higher than your local mandi ({ARBITRAGE_OPPORTUNITY.localMandi}).
+                      </p>
+                      <div className="flex items-center gap-2 text-xs font-semibold text-blue-800 bg-blue-100/70 inline-flex px-3 py-1.5 rounded-lg">
+                        <span className="flex items-center gap-1"><Store size={12} /> {ARBITRAGE_OPPORTUNITY.distance}</span>
+                        <span className="w-1 h-1 rounded-full bg-blue-300"></span>
+                        <span className="text-green-700">Est. Profit: {ARBITRAGE_OPPORTUNITY.profitMargin}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between mb-3 mt-2">
+              <h2 className="text-lg font-bold text-earth">
+                {searchQuery || selectedCategory !== 'All' ? 'Search Results' : 'Trending Crops'} 
+                <span className="text-sm font-normal text-gray-500 ml-1">| आज के भाव</span>
+              </h2>
+              <p className="text-xs text-gray-500 font-medium">{filteredCrops.length} items found</p>
+            </div>
+
+            <AnimatePresence mode="popLayout">
+              {filteredCrops.length > 0 ? (
+                filteredCrops.map((crop, index) => (
+                  <motion.div 
+                    layout
+                    key={crop.id} 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ delay: index * 0.05 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => onSelectCrop(crop)}
+                    className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-shadow cursor-pointer"
+                  >
               <div className="flex justify-between items-start mb-3">
                 <div className="flex gap-3">
                   <div className={`w-12 h-12 rounded-lg flex items-center justify-center shrink-0 ${
@@ -223,9 +434,14 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
                         <Store size={12} />
                         {crop.mandi}
                       </p>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary-dark/60 bg-primary/5 px-2 py-0.5 rounded-full self-start">
-                        {crop.category}
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary-dark/60 bg-primary/5 px-2 py-0.5 rounded-full">
+                          {crop.category}
+                        </span>
+                        <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap">
+                          🤖 AI: {crop.trend === 'up' ? '+5%' : crop.trend === 'down' ? '-3%' : 'Stable'} next week
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -245,20 +461,48 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
               </div>
               
               <div className="mt-4 pt-3 border-t border-gray-100 flex items-end justify-between">
-                <div className="text-xs text-gray-500">
-                  <p>Price Trend (7 Days)</p>
+                <div className="flex flex-col gap-2">
+                  <div className="text-xs text-gray-500">
+                    <p>Price Trend (7 Days)</p>
+                  </div>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedCropForAlert(crop);
+                      setAlertModalOpen(true);
+                      setAlertThreshold(crop.price.toString());
+                    }}
+                    className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-md transition-colors ${
+                      alerts[crop.id] 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                    }`}
+                  >
+                    <Bell size={12} className={alerts[crop.id] ? 'fill-primary' : ''} />
+                    {alerts[crop.id] ? 'Alert Set' : 'Set Alert'}
+                  </button>
                 </div>
-                <div className="h-8 w-24">
-                  <svg className="w-full h-full overflow-visible" viewBox="0 0 100 30">
-                    <path 
-                      className={`fill-none stroke-2 ${crop.trend === 'up' ? 'stroke-green-500' : crop.trend === 'down' ? 'stroke-red-500' : 'stroke-gray-400'}`} 
-                      d={crop.trend === 'up' ? "M0,25 Q20,28 40,15 T100,5" : crop.trend === 'down' ? "M0,5 Q20,5 40,15 T100,25" : "M0,15 L30,15 L50,12 L70,15 L100,15"} 
-                    />
-                    <circle 
-                      className={crop.trend === 'up' ? 'fill-green-600' : crop.trend === 'down' ? 'fill-red-600' : 'fill-gray-400'} 
-                      cx="100" cy={crop.trend === 'up' ? 5 : crop.trend === 'down' ? 25 : 15} r="2" 
-                    />
-                  </svg>
+                <div className="h-10 w-28">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={getMockHistoricalData(crop.price, crop.trend)}>
+                      <defs>
+                        <linearGradient id={`colorPrice-${crop.id}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={crop.trend === 'up' ? '#22c55e' : crop.trend === 'down' ? '#ef4444' : '#9ca3af'} stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor={crop.trend === 'up' ? '#22c55e' : crop.trend === 'down' ? '#ef4444' : '#9ca3af'} stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <YAxis hide domain={['dataMin - (dataMin * 0.1)', 'dataMax + (dataMax * 0.1)']} />
+                      <Area 
+                        type="monotone" 
+                        dataKey="price" 
+                        stroke={crop.trend === 'up' ? '#22c55e' : crop.trend === 'down' ? '#ef4444' : '#9ca3af'} 
+                        strokeWidth={2}
+                        fillOpacity={1} 
+                        fill={`url(#colorPrice-${crop.id})`} 
+                        isAnimationActive={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             </motion.div>
@@ -287,6 +531,8 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
           </motion.div>
         )}
         </AnimatePresence>
+        </>
+        )}
 
         {/* Sell Smartly Tip */}
         <div className="bg-primary/10 p-4 rounded-xl border border-primary/20 flex gap-4 items-center">
@@ -299,6 +545,112 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
           </div>
         </div>
       </main>
+
+      {/* Alert Modal */}
+      <AnimatePresence>
+        {alertModalOpen && selectedCropForAlert && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => setAlertModalOpen(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-earth">Set Price Alert</h3>
+                <button 
+                  onClick={() => setAlertModalOpen(false)}
+                  className="p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 rounded-xl">
+                  <span className="text-2xl">{selectedCropForAlert.icon}</span>
+                  <div>
+                    <p className="font-bold text-earth">{selectedCropForAlert.name}</p>
+                    <p className="text-sm text-gray-500">Current: ₹{selectedCropForAlert.price}/q</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Alert me when price goes</label>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => setAlertDirection('above')}
+                        className={`flex-1 py-2 rounded-xl font-bold border-2 transition-colors ${
+                          alertDirection === 'above' 
+                            ? 'border-primary bg-primary/10 text-primary' 
+                            : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                        }`}
+                      >
+                        Above
+                      </button>
+                      <button 
+                        onClick={() => setAlertDirection('below')}
+                        className={`flex-1 py-2 rounded-xl font-bold border-2 transition-colors ${
+                          alertDirection === 'below' 
+                            ? 'border-red-500 bg-red-50 text-red-600' 
+                            : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                        }`}
+                      >
+                        Below
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Target Price (₹/q)</label>
+                    <input 
+                      type="number" 
+                      value={alertThreshold}
+                      onChange={(e) => setAlertThreshold(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 font-bold text-earth focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="Enter amount..."
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                {alerts[selectedCropForAlert.id] && (
+                  <button 
+                    onClick={() => {
+                      setAlerts(prev => {
+                        const newAlerts = { ...prev };
+                        delete newAlerts[selectedCropForAlert.id];
+                        return newAlerts;
+                      });
+                      setAlertModalOpen(false);
+                      toast.success(`Alert removed for ${selectedCropForAlert.name}`);
+                    }}
+                    className="py-3 px-4 rounded-xl font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
+                  >
+                    Remove
+                  </button>
+                )}
+                <button 
+                  onClick={handleSetAlert}
+                  disabled={!alertThreshold}
+                  className="flex-1 bg-primary text-white py-3 rounded-xl font-bold hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save Alert
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

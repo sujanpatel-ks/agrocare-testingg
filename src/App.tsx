@@ -8,6 +8,8 @@ import { Community } from './components/Community';
 import { Calendar } from './components/Calendar';
 import { Diagnosis } from './components/Diagnosis';
 import { Chat } from './components/Chat';
+import { Profile } from './components/Profile';
+import { SchemeFinder } from './components/SchemeFinder';
 import { BottomNav } from './components/BottomNav';
 import { DiagnosisResult, diagnoseCrop } from './services/gemini';
 import { motion, AnimatePresence } from 'motion/react';
@@ -16,6 +18,7 @@ import { FileUploader } from './components/FileUploader';
 import { CameraDiagnosis } from './components/CameraDiagnosis';
 import { TASKS as INITIAL_TASKS } from './constants';
 import { Task, CropPrice, Language } from './types';
+import { Toaster } from 'sonner';
 
 export default function App() {
   const [activeScreen, setActiveScreen] = useState<Screen>('home');
@@ -212,12 +215,12 @@ export default function App() {
       case 'suppliers':
         return <Suppliers onBack={() => setActiveScreen('home')} language={language} />;
       case 'community':
-        return <Community onBack={() => setActiveScreen('home')} language={language} onToggleLanguage={toggleLanguage} />;
+        return <Community onBack={() => setActiveScreen('home')} language={language} onToggleLanguage={toggleLanguage} onNavigate={setActiveScreen} />;
       case 'calendar':
         return <Calendar tasks={tasks} onToggleTask={handleToggleTask} onBack={() => setActiveScreen('home')} language={language} />;
       case 'scan':
         return (
-          <div className="flex flex-col min-h-screen bg-soil p-6">
+          <div className="flex flex-col min-h-[100dvh] bg-soil p-6">
             <div className="flex items-center gap-4 mb-8 pt-6">
               <button 
                 onClick={() => setActiveScreen('home')}
@@ -265,13 +268,26 @@ export default function App() {
         );
       case 'chat':
         return <Chat onBack={() => setActiveScreen('home')} language={language} />;
+      case 'profile':
+        return <Profile onBack={() => setActiveScreen('home')} language={language} onToggleLanguage={toggleLanguage} />;
+      case 'scheme-finder':
+        return <SchemeFinder onBack={() => setActiveScreen('community')} language={language} />;
       default:
-        return <Dashboard onNavigate={setActiveScreen} onFileSelect={handleFileSelect} />;
+        return (
+          <Dashboard 
+            onNavigate={(screen) => setActiveScreen(screen)} 
+            onFileSelect={handleFileSelect}
+            onAddTask={handleAddTask}
+            language={language}
+            onToggleLanguage={toggleLanguage}
+            onCameraOpen={() => setShowCamera(true)}
+          />
+        );
     }
   };
 
   return (
-    <div className="max-w-md mx-auto bg-white min-h-screen relative shadow-2xl overflow-x-hidden">
+    <div className="max-w-md mx-auto bg-white min-h-[100dvh] relative shadow-2xl overflow-x-hidden">
       <AnimatePresence mode="wait">
         <motion.div
           key={activeScreen + (isDiagnosing ? '-loading' : '')}
@@ -279,7 +295,7 @@ export default function App() {
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           exit={{ opacity: 0, y: -10, filter: 'blur(4px)' }}
           transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-          className="min-h-screen"
+          className="min-h-[100dvh]"
         >
           {renderScreen()}
         </motion.div>
@@ -299,6 +315,7 @@ export default function App() {
           onClose={() => setShowCamera(false)} 
         />
       )}
+      <Toaster position="top-center" richColors />
     </div>
   );
 }

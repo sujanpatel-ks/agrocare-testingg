@@ -1,8 +1,52 @@
-import React, { useState, useMemo } from 'react';
-import { ArrowLeft, TrendingUp, TrendingDown, Minus, CloudRain, Sun, Cloud, Wind, Star, MessageSquare, Info, Store, Filter, ChevronDown } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ArrowLeft, TrendingUp, TrendingDown, Minus, CloudRain, Sun, Cloud, Wind, Star, MessageSquare, Info, Store, Filter, ChevronDown, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { CropPrice, Language } from '../types';
+import { useGeolocation } from '../hooks/useGeolocation';
+import { SUPPLIERS } from '../constants';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+
+// Fix for default marker icon
+const markerIcon2x = 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png';
+const markerIcon = 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png';
+const markerShadow = 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png';
+
+// @ts-ignore
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+const userIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+  shadowUrl: markerShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+const supplierIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+  shadowUrl: markerShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+// Component to handle map centering
+const ChangeView = ({ center, zoom }: { center: [number, number], zoom: number }) => {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, zoom);
+  }, [center, zoom, map]);
+  return null;
+};
 
 interface CropDetailsProps {
   crop: CropPrice;
@@ -15,6 +59,28 @@ export const CropDetails: React.FC<CropDetailsProps> = ({ crop, onBack, language
   const [sortBy, setSortBy] = useState<'recency' | 'rating'>('recency');
   const [filterRating, setFilterRating] = useState<number | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const { latitude, longitude } = useGeolocation();
+  const initialLocationRef = React.useRef<{lat: number, lng: number} | null>(null);
+
+  // Generate deterministic supplier locations based on user location
+  const mapSuppliers = useMemo(() => {
+    if (!latitude || !longitude) return [];
+    
+    if (!initialLocationRef.current) {
+      initialLocationRef.current = { lat: latitude, lng: longitude };
+    }
+    
+    return SUPPLIERS.map((s, i) => {
+      const pseudoRandom1 = Math.sin(i * 12.9898) * 43758.5453;
+      const pseudoRandom2 = Math.cos(i * 78.233) * 43758.5453;
+      const offsetLat = (pseudoRandom1 - Math.floor(pseudoRandom1) - 0.5) * 0.05;
+      const offsetLng = (pseudoRandom2 - Math.floor(pseudoRandom2) - 0.5) * 0.05;
+      
+      const lat = s.lat || initialLocationRef.current!.lat + offsetLat;
+      const lng = s.lng || initialLocationRef.current!.lng + offsetLng;
+      return { ...s, lat, lng };
+    });
+  }, [latitude, longitude]);
 
   // Mock historical data
   const historicalData = [
@@ -48,7 +114,7 @@ export const CropDetails: React.FC<CropDetailsProps> = ({ crop, onBack, language
   }, [sortBy, filterRating]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-soil">
+    <div className="flex flex-col min-h-[100dvh] bg-soil">
       {/* Header */}
       <header className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 pt-12 pb-4 shadow-sm">
         <div className="flex items-center gap-4">
@@ -94,6 +160,29 @@ export const CropDetails: React.FC<CropDetailsProps> = ({ crop, onBack, language
             <div className="flex items-center gap-2 text-sm text-gray-500 font-medium">
               <Store size={16} className="text-primary" />
               <span>Latest update from {crop.mandi}</span>
+            </div>
+          </div>
+        </section>
+
+        {/* In-Depth Information */}
+        <section>
+          <h2 className="text-xl font-black text-earth tracking-tight mb-5 px-2">Crop Information</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Soil Type</p>
+              <p className="text-sm font-black text-earth">Loamy, Well-drained</p>
+            </div>
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Water Needs</p>
+              <p className="text-sm font-black text-earth">Moderate (400-600mm)</p>
+            </div>
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Growth Stage</p>
+              <p className="text-sm font-black text-earth">Vegetative</p>
+            </div>
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Est. Yield</p>
+              <p className="text-sm font-black text-earth">20-25 q/acre</p>
             </div>
           </div>
         </section>
@@ -147,30 +236,118 @@ export const CropDetails: React.FC<CropDetailsProps> = ({ crop, onBack, language
 
         {/* Weather Impact */}
         <section>
-          <h2 className="text-xl font-black text-earth tracking-tight mb-5 px-2">Weather Impact</h2>
-          <div className="bg-[#1B5E20] rounded-[32px] p-6 text-white relative overflow-hidden">
+          <h2 className="text-xl font-black text-earth tracking-tight mb-5 px-2">Weather & Market Impact</h2>
+          
+          <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-4 px-2 -mx-2">
+            <div className="min-w-[140px] bg-blue-50 rounded-3xl p-5 border border-blue-100 flex flex-col items-center text-center shrink-0">
+              <div className="w-12 h-12 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mb-3">
+                <CloudRain size={24} />
+              </div>
+              <h3 className="font-black text-blue-900 text-sm mb-1">Rainfall</h3>
+              <p className="text-xs text-blue-700/80 font-medium">Moderate rain in 48h</p>
+            </div>
+            
+            <div className="min-w-[140px] bg-orange-50 rounded-3xl p-5 border border-orange-100 flex flex-col items-center text-center shrink-0">
+              <div className="w-12 h-12 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center mb-3">
+                <Sun size={24} />
+              </div>
+              <h3 className="font-black text-orange-900 text-sm mb-1">Temperature</h3>
+              <p className="text-xs text-orange-700/80 font-medium">32°C High / 22°C Low</p>
+            </div>
+
+            <div className="min-w-[140px] bg-teal-50 rounded-3xl p-5 border border-teal-100 flex flex-col items-center text-center shrink-0">
+              <div className="w-12 h-12 bg-teal-100 text-teal-600 rounded-full flex items-center justify-center mb-3">
+                <Wind size={24} />
+              </div>
+              <h3 className="font-black text-teal-900 text-sm mb-1">Wind</h3>
+              <p className="text-xs text-teal-700/80 font-medium">12 km/h NW</p>
+            </div>
+          </div>
+
+          <div className="bg-[#1B5E20] rounded-[32px] p-6 text-white relative overflow-hidden mt-2">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-            <div className="flex items-start gap-4 relative z-10">
-              <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-md">
-                <CloudRain size={32} />
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="bg-white/20 p-2 rounded-xl backdrop-blur-md">
+                  <TrendingUp size={20} />
+                </div>
+                <h3 className="text-base font-black">Market Prediction</h3>
               </div>
-              <div>
-                <h3 className="text-lg font-black mb-1">Expected Rainfall</h3>
-                <p className="text-sm text-green-100/80 font-medium leading-relaxed">
-                  Moderate rain expected in the next 48 hours. This may temporarily slow down arrivals at {crop.mandi}, potentially pushing prices up by 2-3%.
-                </p>
+              <p className="text-sm text-green-100/80 font-medium leading-relaxed mb-5">
+                Upcoming rain may temporarily slow down arrivals at {crop.mandi}, potentially pushing prices up by 2-3%.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white/10 rounded-2xl p-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-green-200/60 mb-1">Supply Risk</p>
+                  <p className="text-sm font-black">Medium</p>
+                </div>
+                <div className="bg-white/10 rounded-2xl p-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-green-200/60 mb-1">Price Outlook</p>
+                  <p className="text-sm font-black text-green-400">Bullish</p>
+                </div>
               </div>
             </div>
-            <div className="mt-6 pt-6 border-t border-white/10 grid grid-cols-2 gap-4 relative z-10">
-              <div className="bg-white/10 rounded-2xl p-3">
-                <p className="text-[10px] font-black uppercase tracking-widest text-green-200/60 mb-1">Supply Risk</p>
-                <p className="text-sm font-black">Medium</p>
+          </div>
+        </section>
+
+        {/* Supplier Map */}
+        <section>
+          <div className="flex justify-between items-center mb-5 px-2">
+            <h2 className="text-xl font-black text-earth tracking-tight">Nearby Suppliers</h2>
+            <button 
+              onClick={onFindSuppliers}
+              className="text-primary text-xs font-black uppercase tracking-widest flex items-center"
+            >
+              View All <ChevronDown size={14} className="ml-1 -rotate-90" />
+            </button>
+          </div>
+          <div className="bg-white rounded-[32px] p-2 shadow-sm border border-gray-100 overflow-hidden h-64 relative">
+            {latitude && longitude ? (
+              <MapContainer 
+                center={[latitude, longitude]} 
+                zoom={12} 
+                style={{ height: '100%', width: '100%', borderRadius: '24px', zIndex: 10 }}
+                zoomControl={false}
+              >
+                <TileLayer
+                  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                />
+                <ChangeView center={[latitude, longitude]} zoom={12} />
+                
+                {/* User Location */}
+                <Marker position={[latitude, longitude]} icon={userIcon}>
+                  <Popup className="rounded-xl">
+                    <div className="font-bold text-center">Your Location</div>
+                  </Popup>
+                </Marker>
+
+                {/* Suppliers */}
+                {mapSuppliers.map((supplier) => (
+                  <Marker 
+                    key={supplier.id} 
+                    position={[supplier.lat!, supplier.lng!]} 
+                    icon={supplierIcon}
+                  >
+                    <Popup className="rounded-xl">
+                      <div className="p-1">
+                        <h3 className="font-black text-earth text-sm">{supplier.name}</h3>
+                        <p className="text-xs text-gray-500 mt-1">{supplier.distance} away</p>
+                        <div className="flex items-center gap-1 mt-2">
+                          <Star size={12} className="fill-yellow-400 text-yellow-400" />
+                          <span className="text-xs font-bold">{supplier.rating}</span>
+                        </div>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+              </MapContainer>
+            ) : (
+              <div className="h-full w-full bg-gray-50 rounded-[24px] flex flex-col items-center justify-center text-gray-400">
+                <MapPin size={32} className="mb-2 opacity-50" />
+                <p className="text-sm font-bold">Locating nearby suppliers...</p>
               </div>
-              <div className="bg-white/10 rounded-2xl p-3">
-                <p className="text-[10px] font-black uppercase tracking-widest text-green-200/60 mb-1">Price Outlook</p>
-                <p className="text-sm font-black text-green-400">Bullish</p>
-              </div>
-            </div>
+            )}
           </div>
         </section>
 

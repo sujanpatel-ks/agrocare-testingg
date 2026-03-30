@@ -29,17 +29,18 @@ export interface DiagnosisResult {
   };
   actionRequired?: string;
   severity: 'Low' | 'Medium' | 'High';
+  boundingBox?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-1000
 }
 
 export async function diagnoseCrop(imageBase64: string): Promise<DiagnosisResult> {
-  const model = "gemini-3-flash-preview";
+  const model = "gemini-3.1-pro-preview";
   
   const response = await ai.models.generateContent({
     model,
     contents: [
       {
         parts: [
-          { text: "Analyze this crop leaf image. Identify the crop and any disease. Provide the disease name in English, Hindi, and Kannada. Provide a brief description of the diagnosis. Provide symptoms. Provide detailed prevention tips divided into immediate actions and long-term measures. Provide detailed treatments (organic and chemical) including product name (EN/HI/KN), dosage, frequency, precautions, and estimated cost per hectare. Also estimate the severity (Low, Medium, High). Return JSON." },
+          { text: "Analyze this crop leaf image. Identify the crop and any disease. Provide the disease name in English, Hindi, and Kannada. Provide a brief description of the diagnosis. Provide symptoms. Provide detailed prevention tips divided into immediate actions and long-term measures. Provide detailed treatments (organic and chemical) including product name (EN/HI/KN), dosage, frequency, precautions, and estimated cost per hectare. Also estimate the severity (Low, Medium, High). If a disease or abnormality is detected, provide a boundingBox as [ymin, xmin, ymax, xmax] in normalized coordinates from 0 to 1000. Return JSON." },
           {
             inlineData: {
               mimeType: "image/jpeg",
@@ -101,6 +102,11 @@ export async function diagnoseCrop(imageBase64: string): Promise<DiagnosisResult
           },
           actionRequired: { type: Type.STRING },
           severity: { type: Type.STRING, enum: ["Low", "Medium", "High"] },
+          boundingBox: {
+            type: Type.ARRAY,
+            items: { type: Type.NUMBER },
+            description: "[ymin, xmin, ymax, xmax] normalized coordinates from 0 to 1000"
+          },
         },
         required: ["crop", "disease", "diseaseHi", "diseaseKn", "confidence", "description", "symptoms", "prevention", "treatment", "severity"],
       },
@@ -125,7 +131,7 @@ export interface Supplier {
 }
 
 export async function findNearbySuppliers(lat: number, lng: number): Promise<Supplier[]> {
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3-flash-preview";
   
   const response = await ai.models.generateContent({
     model,
@@ -186,9 +192,26 @@ export interface ForecastDay {
 export async function getRealTimeWeather(lat: number, lng: number): Promise<WeatherData> {
   const model = "gemini-3-flash-preview";
   
+  // Fetch highly accurate location name using a free reverse geocoding API
+  let exactLocation = "";
+  try {
+    const geoResponse = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
+    if (geoResponse.ok) {
+      const geoData = await geoResponse.json();
+      // Prioritize the most specific locality name
+      exactLocation = geoData.locality || geoData.city || geoData.principalSubdivision || "";
+    }
+  } catch (error) {
+    console.error("Reverse geocoding failed:", error);
+  }
+
+  const locationContext = exactLocation 
+    ? `the location "${exactLocation}" (coordinates: ${lat}, ${lng})` 
+    : `coordinates ${lat}, ${lng}`;
+
   const response = await ai.models.generateContent({
     model,
-    contents: `Get current weather for coordinates ${lat}, ${lng}. Return JSON with temp (number, Celsius), location (string, city/region), humidity (number, %), rain (number, mm), wind (number, km/h), and condition (string, e.g., 'Sunny', 'Cloudy', 'Rainy').`,
+    contents: `Get current weather for ${locationContext}. Return JSON with temp (number, Celsius), location (string, use "${exactLocation}" if provided, otherwise city/region), humidity (number, %), rain (number, mm), wind (number, km/h), and condition (string, e.g., 'Sunny', 'Cloudy', 'Rainy').`,
     config: {
       tools: [{ googleSearch: {} }],
       responseMimeType: "application/json",
@@ -241,18 +264,38 @@ export async function getWeatherForecast(lat: number, lng: number): Promise<Fore
 }
 
 export async function chatWithAssistant(message: string, history: { role: "user" | "model"; parts: { text: string }[] }[]) {
-  const chat = ai.chats.create({
-    model: "gemini-3-flash-preview",
-    config: {
-      systemInstruction: "You are AgroCare Bot, a helpful agricultural assistant. You provide advice on crop diseases, planting, fertilizers, and market trends. Keep responses concise and helpful for farmers. You can speak in English and Hindi.",
-    },
-  });
+  try {
+    const webhookResponse = await fetch('https://agrocare.app.n8n.cloud/webhook/0bb5129e-b60b-4c21-962e-6d0e96985564/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chatInput: message,
+        message: message,
+        history: history
+      })
+    });
 
-  // Note: The SDK might handle history differently depending on version, 
-  // but for simple stateless calls or manual history management:
+    if (webhookResponse.ok) {
+      const data = await webhookResponse.json();
+      if (typeof data === 'string') return data;
+      if (data.output) return data.output;
+      if (data.response) return data.response;
+      if (data.text) return data.text;
+      if (data.message) return data.message;
+      return JSON.stringify(data);
+    }
+  } catch (error) {
+    console.error("Webhook failed, falling back to Gemini:", error);
+  }
+
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: [...history, { role: "user", parts: [{ text: message }] }],
+    config: {
+      systemInstruction: "You are AgroCare Bot, a helpful agricultural assistant. You provide advice on crop diseases, planting, fertilizers, and market trends. Keep responses concise and helpful for farmers. You can speak in English, Hindi, and Kannada.",
+    }
   });
 
   return response.text;

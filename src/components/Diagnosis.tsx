@@ -168,7 +168,7 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-soil max-w-md mx-auto bg-white overflow-hidden relative">
+    <div className="flex flex-col min-h-[100dvh] bg-soil max-w-md mx-auto bg-white overflow-hidden relative">
       <header className="bg-white px-4 py-3 border-b border-gray-100 flex items-center justify-between sticky top-0 z-20 pt-12">
         <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-100">
           <ArrowLeft size={24} className="text-gray-700" />
@@ -192,7 +192,7 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
       </header>
 
       <main className="flex-1 overflow-y-auto pb-48">
-        <div className="relative w-full h-64 bg-gray-200">
+        <div className="relative w-full h-64 bg-gray-200 overflow-hidden">
           <img 
             src={imageUrl || "https://picsum.photos/seed/leaf/600/400"} 
             alt="Analyzed Leaf" 
@@ -200,6 +200,28 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
             referrerPolicy="no-referrer"
           />
           
+          {result.boundingBox && result.boundingBox.length === 4 && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.5, duration: 0.5, type: "spring" }}
+              className="absolute border-2 border-red-500 rounded-sm pointer-events-none flex justify-center"
+              style={{
+                top: `${(result.boundingBox[0] / 1000) * 100}%`,
+                left: `${(result.boundingBox[1] / 1000) * 100}%`,
+                height: `${((result.boundingBox[2] - result.boundingBox[0]) / 1000) * 100}%`,
+                width: `${((result.boundingBox[3] - result.boundingBox[1]) / 1000) * 100}%`,
+                boxShadow: '0 0 15px rgba(239, 68, 68, 0.3), inset 0 0 15px rgba(239, 68, 68, 0.3)',
+              }}
+            >
+              <div className="absolute -top-8 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap flex items-center gap-1">
+                <AlertTriangle size={12} />
+                {language === 'hi' ? result.diseaseHi : language === 'kn' ? result.diseaseKn : result.disease}
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-l-transparent border-r-transparent border-t-red-500"></div>
+              </div>
+            </motion.div>
+          )}
+
           <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-md ${severityColor}`}>
             {result.severity} {t.severity}
           </div>

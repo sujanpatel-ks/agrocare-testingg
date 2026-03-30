@@ -1,4 +1,4 @@
-export type Screen = 'home' | 'market' | 'suppliers' | 'community' | 'calendar' | 'diagnosis' | 'chat' | 'scan' | 'crop-details';
+export type Screen = 'home' | 'market' | 'suppliers' | 'community' | 'calendar' | 'diagnosis' | 'chat' | 'scan' | 'crop-details' | 'profile' | 'scheme-finder';
 
 export type Language = 'en' | 'hi' | 'kn';
 
@@ -26,6 +26,8 @@ export interface Supplier {
   tags: string[];
   verified: boolean;
   phone: string;
+  lat?: number;
+  lng?: number;
 }
 
 export interface Discussion {

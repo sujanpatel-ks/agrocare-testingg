@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { TASKS, RECOMMENDED_CROPS } from '../constants';
 import { Task, Language } from '../types';
 import { getRealTimeWeather, WeatherData } from '../services/gemini';
+import { useGeolocation } from '../hooks/useGeolocation';
 
 interface CalendarProps {
   onBack: () => void;
@@ -15,29 +16,25 @@ interface CalendarProps {
 export const Calendar: React.FC<CalendarProps> = ({ onBack, tasks, onToggleTask, language }) => {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(true);
+  const { latitude, longitude, loading: locationLoading, error: locationError } = useGeolocation();
 
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            const data = await getRealTimeWeather(position.coords.latitude, position.coords.longitude);
-            setWeather(data);
-          } catch (error) {
-            console.error("Weather fetch failed:", error);
-          } finally {
-            setWeatherLoading(false);
-          }
-        },
-        (error) => {
-          console.error("Geolocation failed:", error);
+    if (latitude && longitude) {
+      const fetchWeather = async () => {
+        try {
+          const data = await getRealTimeWeather(latitude, longitude);
+          setWeather(data);
+        } catch (error) {
+          console.error("Weather fetch failed:", error);
+        } finally {
           setWeatherLoading(false);
         }
-      );
-    } else {
+      };
+      fetchWeather();
+    } else if (!locationLoading && locationError) {
       setWeatherLoading(false);
     }
-  }, []);
+  }, [latitude, longitude, locationLoading, locationError]);
 
   const currentMonth = new Date().toLocaleString('default', { month: 'short' });
   const months = [];
@@ -60,7 +57,7 @@ export const Calendar: React.FC<CalendarProps> = ({ onBack, tasks, onToggleTask,
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white max-w-md mx-auto overflow-x-hidden shadow-2xl">
+    <div className="flex flex-col min-h-[100dvh] bg-white max-w-md mx-auto overflow-x-hidden shadow-2xl">
       {/* Header */}
       <header className="flex items-center justify-between px-5 pt-12 pb-4 bg-white sticky top-0 z-20">
         <div className="flex items-center gap-3">

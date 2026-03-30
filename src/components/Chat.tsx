@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MoreVertical, Bot, Send, Mic, Camera, Volume2, CheckCheck, Leaf, AlertTriangle } from 'lucide-react';
-import { chatWithAssistant } from '../services/gemini';
+import { ArrowLeft, MoreVertical, Bot, Send, Mic, Camera, Volume2, CheckCheck, Leaf, AlertTriangle, Square } from 'lucide-react';
+import { chatWithAssistant, generateSpeech } from '../services/gemini';
 import { Language } from '../types';
 
 interface Message {
@@ -29,7 +29,11 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language }) => {
   ]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [playingAudioIndex, setPlayingAudioIndex] = useState<number | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -38,6 +42,131 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language }) => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      if (audioSourceRef.current) {
+        try {
+          audioSourceRef.current.stop();
+        } catch (e) {}
+      }
+      if (audioContextRef.current) {
+        try {
+          audioContextRef.current.close();
+        } catch (e) {}
+      }
+    };
+  }, []);
+
+  const handleMicClick = () => {
+    if (isListening) {
+      setIsListening(false);
+      // Note: We can't easily stop the native recognition instance here without keeping a ref to it,
+      // but setting isListening to false will update the UI.
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-US';
+
+    recognition.onstart = () => setIsListening(true);
+    
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0])
+        .map((result: any) => result.transcript)
+        .join('');
+      setInputText(transcript);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error", event.error);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
+
+  const handlePlayAudio = async (text: string, index: number) => {
+    if (playingAudioIndex === index) {
+      if (audioSourceRef.current) {
+        try {
+          audioSourceRef.current.stop();
+        } catch (e) {}
+        audioSourceRef.current = null;
+      }
+      setPlayingAudioIndex(null);
+      return;
+    }
+
+    try {
+      setPlayingAudioIndex(index);
+      const base64Audio = await generateSpeech(text);
+      if (base64Audio) {
+        if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
+        }
+        
+        const audioCtx = audioContextRef.current;
+        
+        // Decode base64 to binary string
+        const binaryString = atob(base64Audio);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        // Convert to 16-bit PCM
+        const int16Array = new Int16Array(bytes.buffer);
+        
+        // Create audio buffer
+        const audioBuffer = audioCtx.createBuffer(1, int16Array.length, 24000);
+        const channelData = audioBuffer.getChannelData(0);
+        
+        // Convert Int16 to Float32 (-1.0 to 1.0)
+        for (let i = 0; i < int16Array.length; i++) {
+          channelData[i] = int16Array[i] / 32768.0;
+        }
+        
+        // Stop any existing source
+        if (audioSourceRef.current) {
+          try {
+            audioSourceRef.current.stop();
+          } catch (e) {}
+        }
+        
+        const source = audioCtx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioCtx.destination);
+        
+        source.onended = () => {
+          setPlayingAudioIndex(null);
+          audioSourceRef.current = null;
+        };
+        
+        audioSourceRef.current = source;
+        source.start();
+      } else {
+        setPlayingAudioIndex(null);
+      }
+    } catch (error) {
+      console.error("Failed to play audio:", error);
+      setPlayingAudioIndex(null);
+    }
+  };
 
   const handleSend = async () => {
     if (!inputText.trim()) return;
@@ -53,10 +182,12 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language }) => {
     setIsLoading(true);
 
     try {
-      const history = messages.map(m => ({
-        role: m.role,
-        parts: [{ text: m.text }]
-      }));
+      const history = messages
+        .filter((m, i) => !(i === 0 && m.role === 'model'))
+        .map(m => ({
+          role: m.role,
+          parts: [{ text: m.text }]
+        }));
 
       const response = await chatWithAssistant(inputText, history);
       
@@ -124,6 +255,18 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language }) => {
                   </p>
                 )}
                 <p className="text-base leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                {msg.role === 'model' && (
+                  <button 
+                    onClick={() => handlePlayAudio(msg.text, i)}
+                    className="mt-2 flex items-center gap-1 text-sm text-primary hover:text-primary-dark transition-colors"
+                  >
+                    {playingAudioIndex === i ? (
+                      <><Square size={16} className="fill-current" /> Stop</>
+                    ) : (
+                      <><Volume2 size={16} /> Listen</>
+                    )}
+                  </button>
+                )}
               </div>
               <span className={`text-[10px] text-gray-500 mt-1 block flex items-center gap-1 ${msg.role === 'user' ? 'justify-end' : 'ml-1'}`}>
                 {msg.time}
@@ -151,8 +294,15 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language }) => {
 
       <footer className="absolute bottom-0 w-full bg-white border-t border-gray-200 px-3 py-3 z-20 pb-8">
         <div className="flex items-end gap-2">
-          <button className="bg-primary text-white p-3 rounded-full shadow-lg hover:bg-primary-dark active:scale-95 transition flex-shrink-0 mb-1">
-            <Mic size={24} />
+          <button 
+            onClick={handleMicClick}
+            className={`p-3 rounded-full shadow-lg transition flex-shrink-0 mb-1 ${
+              isListening 
+                ? 'bg-red-500 text-white animate-pulse' 
+                : 'bg-primary text-white hover:bg-primary-dark active:scale-95'
+            }`}
+          >
+            {isListening ? <Square size={24} className="fill-current" /> : <Mic size={24} />}
           </button>
           <div className="flex-1 bg-gray-100 rounded-3xl flex items-center px-4 py-2 border border-gray-200 focus-within:border-primary focus-within:bg-white transition mb-1">
             <textarea 

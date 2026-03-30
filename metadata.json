@@ -1,5 +1,9 @@
 {
-  "name": "AgroCare AI",
+  "name": "AgroCare AI Final APP",
   "description": "Smart farming assistant for crop diagnosis, market prices, and community advice.",
-  "requestFramePermissions": ["camera", "geolocation"]
+  "requestFramePermissions": [
+    "camera",
+    "geolocation",
+    "microphone"
+  ]
 }

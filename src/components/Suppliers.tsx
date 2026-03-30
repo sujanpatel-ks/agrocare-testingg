@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ShoppingBag, Filter, Navigation, Star, Phone, MapPin, Loader2, LocateFixed, Compass } from 'lucide-react';
-import { findNearbySuppliers, Supplier } from '../services/gemini';
+import { Supplier } from '../types';
+import { SUPPLIERS } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
+import { useGeolocation } from '../hooks/useGeolocation';
 
 import { Language } from '../types';
 
@@ -56,7 +58,7 @@ interface SuppliersProps {
 const ChangeView = ({ center, zoom }: { center: [number, number], zoom: number }) => {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, zoom);
+    map.flyTo(center, zoom, { duration: 1.5 });
   }, [center, zoom, map]);
   return null;
 };
@@ -64,10 +66,16 @@ const ChangeView = ({ center, zoom }: { center: [number, number], zoom: number }
 export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const { latitude, longitude, loading: locationLoading, error: locationError } = useGeolocation();
   const [error, setError] = useState<string | null>(null);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [openingHours, setOpeningHours] = useState<string>('All');
+  const [maxDistance, setMaxDistance] = useState<number>(10);
+  const [minRating, setMinRating] = useState<number>(0);
+  const [showFilters, setShowFilters] = useState(false);
   const listRefs = React.useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const initialLocationRef = React.useRef<{lat: number, lng: number} | null>(null);
 
   useEffect(() => {
     if (selectedSupplier && listRefs.current[selectedSupplier.id]) {
@@ -76,51 +84,63 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
   }, [selectedSupplier]);
 
   useEffect(() => {
-    if (!navigator.geolocation) {
-      setError("Geolocation is not supported by your browser");
+    if (locationError) {
+      setError(locationError);
       setLoading(false);
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        setUserLocation({ lat: latitude, lng: longitude });
-        try {
-          let results = await findNearbySuppliers(latitude, longitude);
-          
-          // Enrich with mock coordinates and names from screenshot for demo
-          const demoNames = ["AGRI ZONE-NELAMANGALA", "SLN Fertilizers", "Sri Sai Agro Corporation"];
-          results = results.map((s, i) => ({
-            ...s,
-            name: i < demoNames.length ? demoNames[i] : s.name,
-            lat: latitude + (Math.random() - 0.5) * 0.03,
-            lng: longitude + (Math.random() - 0.5) * 0.03,
-            distance: (Math.random() * 5 + 1).toFixed(1)
-          }));
-
-          setSuppliers(results);
-          if (results.length > 0) {
-            setSelectedSupplier(results[0]);
-          }
-        } catch (err) {
-          console.error(err);
-          setError("Failed to fetch nearby suppliers");
-        } finally {
-          setLoading(false);
-        }
-      },
-      (err) => {
-        console.error(err);
-        setError("Please enable location access to find nearby stores");
-        setLoading(false);
+    if (latitude && longitude) {
+      if (!initialLocationRef.current) {
+        initialLocationRef.current = { lat: latitude, lng: longitude };
       }
-    );
-  }, []);
+      
+      // Simulate network request and process SUPPLIERS data
+      setLoading(true);
+      setTimeout(() => {
+        let results = SUPPLIERS.map((s, i) => {
+          // Generate deterministic mock coordinates around initial user location
+          // We use the index 'i' to create a pseudo-random but consistent offset
+          const pseudoRandom1 = Math.sin(i * 12.9898) * 43758.5453;
+          const pseudoRandom2 = Math.cos(i * 78.233) * 43758.5453;
+          const offsetLat = (pseudoRandom1 - Math.floor(pseudoRandom1) - 0.5) * 0.05;
+          const offsetLng = (pseudoRandom2 - Math.floor(pseudoRandom2) - 0.5) * 0.05;
+          
+          const lat = s.lat || initialLocationRef.current!.lat + offsetLat;
+          const lng = s.lng || initialLocationRef.current!.lng + offsetLng;
+          return { ...s, lat, lng };
+        });
+
+        // Apply filters
+        if (selectedTag) {
+          results = results.filter(s => s.tags.includes(selectedTag));
+        }
+        
+        if (openingHours !== 'All') {
+          results = results.filter(s => s.status === openingHours);
+        }
+        
+        results = results.filter(s => {
+          const dist = parseFloat(s.distance);
+          return !isNaN(dist) && dist <= maxDistance;
+        });
+
+        results = results.filter(s => s.rating >= minRating);
+
+        setSuppliers(results);
+        if (results.length > 0 && !selectedSupplier) {
+          setSelectedSupplier(results[0]);
+        } else if (results.length === 0) {
+          setSelectedSupplier(null);
+        }
+        setLoading(false);
+      }, 500);
+    }
+  }, [latitude, longitude, locationError, selectedTag, openingHours, maxDistance, minRating]);
 
   return (
-    <div className="flex flex-col h-screen bg-[#F8F9FA]">
-      <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between shrink-0 z-50 shadow-sm pt-12">
+    <div className="absolute inset-0 flex flex-col bg-[#F8F9FA]">
+      <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between shrink-0 z-50 shadow-sm">
         <button onClick={onBack} className="p-2 -ml-2 rounded-full active:bg-gray-100 text-gray-600">
           <ArrowLeft size={24} />
         </button>
@@ -133,28 +153,101 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
         </button>
       </header>
 
-      <div className="bg-white px-4 py-4 border-b border-gray-100 overflow-x-auto whitespace-nowrap hide-scrollbar shrink-0 z-40">
-        <div className="flex space-x-3">
-          <button className="flex items-center space-x-2 px-6 py-2.5 rounded-full bg-[#1B5E20] text-white font-bold shadow-lg active:scale-95 transition-all">
+      <div className="bg-white px-4 py-3 border-b border-gray-100 shrink-0 z-40">
+        <div className="flex overflow-x-auto whitespace-nowrap hide-scrollbar space-x-3 pb-2">
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center space-x-2 px-6 py-2.5 rounded-full font-bold shadow-sm active:scale-95 transition-all ${showFilters ? 'bg-[#1B5E20] text-white' : 'bg-gray-100 text-gray-700'}`}
+          >
             <Filter size={18} />
             <span>Filters</span>
           </button>
-          {['Organic Seeds', 'Fungicides', 'Tools', 'Fertilizers'].map((tag, i) => (
-            <button key={i} className={`px-6 py-2.5 rounded-full font-bold border transition-all ${
-              tag === 'Fungicides' ? 'bg-[#E8F5E9] text-[#1B5E20] border-[#A5D6A7]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
-            }`}>
+          {['Mancozeb', 'Organic', 'General Seeds', 'Tools'].map((tag, i) => (
+            <button 
+              key={i} 
+              onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+              className={`px-6 py-2.5 rounded-full font-bold border transition-all ${
+                selectedTag === tag ? 'bg-[#E8F5E9] text-[#1B5E20] border-[#A5D6A7]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              }`}
+            >
               {tag}
             </button>
           ))}
         </div>
+        
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="pt-4 pb-2 space-y-4 border-t border-gray-100 mt-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-2">Specialty</label>
+                    <select 
+                      value={selectedTag || 'All'}
+                      onChange={(e) => setSelectedTag(e.target.value === 'All' ? null : e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-[#1B5E20] focus:border-transparent"
+                    >
+                      <option value="All">All Specialties</option>
+                      <option value="Mancozeb">Mancozeb</option>
+                      <option value="Organic">Organic</option>
+                      <option value="General Seeds">General Seeds</option>
+                      <option value="Tools">Tools</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-2">Opening Hours</label>
+                    <select 
+                      value={openingHours}
+                      onChange={(e) => setOpeningHours(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-[#1B5E20] focus:border-transparent"
+                    >
+                      <option value="All">Any Time</option>
+                      <option value="open">Open Now</option>
+                      <option value="closing">Closing Soon</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-2">Max Distance: {maxDistance} km</label>
+                  <input 
+                    type="range" 
+                    min="1" 
+                    max="50" 
+                    value={maxDistance} 
+                    onChange={(e) => setMaxDistance(parseInt(e.target.value))}
+                    className="w-full accent-[#1B5E20]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-2">Min Rating: {minRating} Stars</label>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="5" 
+                    step="0.5"
+                    value={minRating} 
+                    onChange={(e) => setMinRating(parseFloat(e.target.value))}
+                    className="w-full accent-[#1B5E20]"
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      <main className="flex-1 relative flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden relative">
         {/* Map Visualization */}
-        <div className="h-[35vh] w-full relative bg-gray-200 shrink-0 z-10">
-          {userLocation ? (
+        <div className="relative h-[35vh] w-full bg-gray-200 shrink-0 z-10">
+          {latitude && longitude ? (
             <MapContainer 
-              center={[userLocation.lat, userLocation.lng]} 
+              center={[latitude, longitude]} 
               zoom={13} 
               style={{ height: '100%', width: '100%' }}
               zoomControl={false}
@@ -166,11 +259,11 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
               <ChangeView 
                 center={selectedSupplier && selectedSupplier.lat && selectedSupplier.lng 
                   ? [selectedSupplier.lat, selectedSupplier.lng] 
-                  : [userLocation.lat, userLocation.lng]} 
+                  : [latitude, longitude]} 
                 zoom={selectedSupplier ? 15 : 13} 
               />
               
-              <Marker position={[userLocation.lat, userLocation.lng]} icon={userIcon}>
+              <Marker position={[latitude, longitude]} icon={userIcon}>
                 <Popup>You are here</Popup>
               </Marker>
 
@@ -193,10 +286,10 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
                 </Marker>
               ))}
 
-              {selectedSupplier && userLocation && (
+              {selectedSupplier && latitude && longitude && (
                 <Polyline 
                   positions={[
-                    [userLocation.lat, userLocation.lng],
+                    [latitude, longitude],
                     [selectedSupplier.lat!, selectedSupplier.lng!]
                   ]} 
                   color="#1B5E20" 
@@ -214,7 +307,7 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
           
           <div className="absolute bottom-12 right-6 flex flex-col gap-3 z-[1000]">
             <button 
-              onClick={() => userLocation && setSelectedSupplier(null)}
+              onClick={() => latitude && longitude && setSelectedSupplier(null)}
               className="bg-white p-4 rounded-2xl shadow-2xl border border-gray-100 text-[#1B5E20] active:scale-95 transition-all"
             >
               <LocateFixed size={24} />
@@ -226,12 +319,12 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
         </div>
 
         {/* List Section */}
-        <div className="flex-1 bg-white overflow-y-auto pb-40 relative rounded-t-[40px] -mt-24 shadow-[0_-25px_50px_-12px_rgba(0,0,0,0.25)] z-40 border-t border-gray-50 flex flex-col">
-          <div className="w-full flex justify-center pt-6 pb-2 shrink-0">
-            <div className="w-20 h-2 bg-gray-200 rounded-full"></div>
+        <div className="flex-1 bg-white relative rounded-t-[32px] -mt-6 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.3)] z-40 border-t border-gray-100 flex flex-col pb-24">
+          <div className="w-full flex justify-center pt-4 pb-2 shrink-0 bg-white rounded-t-[32px] z-50">
+            <div className="w-16 h-1.5 bg-gray-200 rounded-full"></div>
           </div>
           
-          <div className="px-6 py-4 flex-1">
+          <div className="px-6 py-4 flex-1 overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">
                 {loading ? 'Searching...' : `${suppliers.length} Suppliers Found`}
@@ -313,7 +406,13 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
                       </div>
                       
                       <div className="flex gap-4">
-                        <button className="flex-1 bg-[#1B5E20] hover:bg-[#144317] text-white text-base font-black py-4.5 rounded-[24px] transition-all active:scale-95 flex items-center justify-center gap-3 shadow-lg shadow-green-900/20">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`tel:${supplier.phone}`);
+                          }}
+                          className="flex-1 bg-[#1B5E20] hover:bg-[#144317] text-white text-base font-black py-4.5 rounded-[24px] transition-all active:scale-95 flex items-center justify-center gap-3 shadow-lg shadow-green-900/20"
+                        >
                           <Phone size={20} />
                           Contact
                         </button>
