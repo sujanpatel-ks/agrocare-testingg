@@ -23,14 +23,14 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   return R * c;
 }
 
-export function useGeolocation(thresholdMeters: number = 10) {
+export function useGeolocation(thresholdMeters: number = 5) {
   const [location, setLocation] = useState<LocationState>({
     latitude: null,
     longitude: null,
     error: null,
     loading: true,
   });
-  const lastLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const lastLocationRef = useRef<{ latitude: number; longitude: number; accuracy: number } | null>(null);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -45,23 +45,22 @@ export function useGeolocation(thresholdMeters: number = 10) {
     const handleSuccess = (position: GeolocationPosition) => {
       const { latitude, longitude, accuracy } = position.coords;
       
-      // Ignore updates with poor accuracy (e.g., > 100 meters) to prevent GPS jumping,
-      // unless we don't have any location yet.
-      if (lastLocationRef.current && accuracy > 100) {
-        return;
-      }
+      const isMoreAccurate = lastLocationRef.current && accuracy < lastLocationRef.current.accuracy;
+      
+      const distance = lastLocationRef.current 
+        ? getDistance(lastLocationRef.current.latitude, lastLocationRef.current.longitude, latitude, longitude)
+        : Infinity;
 
-      // Only update if we don't have a previous location, or if the distance moved is greater than the threshold
+      // Update if:
+      // 1. We have no previous location
+      // 2. The new location is more accurate (helps refine initial poor GPS locks)
+      // 3. The user has moved more than the threshold
       if (
         !lastLocationRef.current ||
-        getDistance(
-          lastLocationRef.current.latitude,
-          lastLocationRef.current.longitude,
-          latitude,
-          longitude
-        ) > thresholdMeters
+        isMoreAccurate ||
+        distance > thresholdMeters
       ) {
-        lastLocationRef.current = { latitude, longitude };
+        lastLocationRef.current = { latitude, longitude, accuracy };
         setLocation({
           latitude,
           longitude,
@@ -83,18 +82,18 @@ export function useGeolocation(thresholdMeters: number = 10) {
       }
     };
 
-    // Get initial position
+    // Get initial position with high accuracy
     navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
       enableHighAccuracy: true,
       maximumAge: 0, // Force fresh position
-      timeout: 10000,
+      timeout: 15000,
     });
 
     // Watch for real-time updates
     const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
       enableHighAccuracy: true,
       maximumAge: 0, // Force fresh position
-      timeout: 10000,
+      timeout: 15000,
     });
 
     return () => {

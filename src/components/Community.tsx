@@ -64,7 +64,7 @@ export const Community: React.FC<CommunityProps> = ({ onBack, language, onToggle
         </div>
       </header>
 
-      <main className="flex-1 pb-32 pt-4 relative">
+      <main className="flex-1 overflow-y-auto overscroll-contain pb-32 pt-4 relative" style={{ WebkitOverflowScrolling: 'touch' }}>
         {/* Scheme Finder Banner */}
         <div className="px-4 mb-6">
           <button 

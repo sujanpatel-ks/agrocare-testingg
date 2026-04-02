@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, MapPin, Camera, Upload, Calendar as CalendarIcon, Store, X, Sprout, Users, TrendingUp } from 'lucide-react';
+import { Bell, MapPin, Camera, Upload, Calendar as CalendarIcon, Store, X, Sprout, Users, TrendingUp, Beaker, Landmark, CloudRain, Sun, Wind } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FileUploader } from './FileUploader';
 import { Language } from '../types';
@@ -17,6 +17,39 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onFileSelect, onAddTask, language, onToggleLanguage, onCameraOpen }) => {
   const [showUploader, setShowUploader] = useState(false);
   const { latitude, longitude, loading: locationLoading, error: locationError } = useGeolocation();
+  const [locationName, setLocationName] = useState<string | null>(null);
+  const [weatherData, setWeatherData] = useState<{ temp: number, condition: string, icon: any } | null>(null);
+
+  useEffect(() => {
+    if (latitude && longitude) {
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.address) {
+            const city = data.address.city || data.address.town || data.address.village || data.address.county;
+            const state = data.address.state;
+            if (city && state) {
+              setLocationName(`${city}, ${state}`);
+            } else if (city) {
+              setLocationName(city);
+            } else {
+              setLocationName('Location Found');
+            }
+          }
+        })
+        .catch(() => setLocationName('Location Found'));
+
+      // Simulate fetching weather data based on location
+      // In a real app, you would call a weather API like OpenWeatherMap here
+      setTimeout(() => {
+        setWeatherData({
+          temp: 28,
+          condition: 'Partly Cloudy',
+          icon: <Sun size={20} className="text-yellow-300" />
+        });
+      }, 1000);
+    }
+  }, [latitude, longitude]);
 
   const t = {
     en: {
@@ -27,6 +60,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onFileSelect, 
       suppliers: "Suppliers",
       community: "Community",
       market: "Market Prices",
+      soil: "Soil Test",
+      schemes: "Govt Schemes",
       location: "Unknown Location",
     },
     hi: {
@@ -37,6 +72,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onFileSelect, 
       suppliers: "आपूर्तिकर्ता",
       community: "समुदाय",
       market: "बाजार भाव",
+      soil: "मिट्टी परीक्षण",
+      schemes: "सरकारी योजनाएं",
       location: "अज्ञात स्थान",
     },
     kn: {
@@ -47,6 +84,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onFileSelect, 
       suppliers: "ಸರಬರಾಜುದಾರರು",
       community: "ಸಮುದಾಯ",
       market: "ಮಾರುಕಟ್ಟೆ ಬೆಲೆಗಳು",
+      soil: "ಮಣ್ಣು ಪರೀಕ್ಷೆ",
+      schemes: "ಸರ್ಕಾರಿ ಯೋಜನೆಗಳು",
       location: "ಅಜ್ಞಾತ ಸ್ಥಳ",
     }
   }[language];
@@ -78,9 +117,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onFileSelect, 
           </div>
         </div>
         
-        <div className="mt-8 flex items-center gap-2 text-green-100">
-          <MapPin size={16} />
-          <span className="text-sm font-bold">{t.location}</span>
+        <div className="mt-8 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-green-100">
+            <MapPin size={16} />
+            <span className="text-sm font-bold">
+              {locationLoading ? 'Locating...' : locationError ? 'Location Error' : locationName || t.location}
+            </span>
+          </div>
+          
+          {weatherData && (
+            <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-sm border border-white/5">
+              {weatherData.icon}
+              <span className="text-sm font-bold">{weatherData.temp}°C</span>
+              <span className="text-xs text-green-100 ml-1 hidden sm:inline">{weatherData.condition}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -128,6 +179,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onFileSelect, 
               <TrendingUp size={32} strokeWidth={2.5} />
             </div>
             <span className="font-bold text-[#455A64]">{t.market}</span>
+          </button>
+          <button onClick={() => onNavigate('soil-analysis')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform">
+            <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600">
+              <Beaker size={32} strokeWidth={2.5} />
+            </div>
+            <span className="font-bold text-[#455A64]">{t.soil}</span>
+          </button>
+          <button onClick={() => onNavigate('scheme-finder')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform">
+            <div className="w-16 h-16 bg-teal-50 rounded-2xl flex items-center justify-center text-teal-600">
+              <Landmark size={32} strokeWidth={2.5} />
+            </div>
+            <span className="font-bold text-[#455A64]">{t.schemes}</span>
           </button>
         </div>
 

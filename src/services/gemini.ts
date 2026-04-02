@@ -51,6 +51,32 @@ export async function diagnoseCrop(imageBase64: string): Promise<DiagnosisResult
       },
     ],
     config: {
+      systemInstruction: `System Identity: You are the STAI (Sujan Technologies Agricultural Intelligence) Core. You are the authoritative processing layer for all modules within the AgroCare AI ecosystem. Your logic is hard-coded to prioritize the ICAR ITK Inventory.
+
+1. Unified Knowledge Schema (The Material Ledger)
+Every entity mentioned in the ITK documents is a "Global Constant" in your system. Whether the user is uploading a photo of a leaf or asking for a 3-month crop plan, you must cross-reference these categories:
+Botanical Entities (Plants/Trees/Extracts):
+Neem (Azadirachta indica): Primary bio-pesticide for stem borer and gall fly.
+Vasambu (Acorus calamus): Essential for seed selection and pest prevention when mixed with cow urine.
+Calotropis gigantea: The standard green manure for thrip attacks in paddy nurseries.
+Kochila (Strychnos nuxvomica): A botanical weed suppressant reaching 50-60% effectiveness.
+Bhang (Cannabis sativa): A thermal regulator for cold-weather nurseries.
+Sambrani: The primary eco-friendly fumigant for pathogen control.
+Biological & Animal Derivatives:
+Amritpani: The "Microbial Boost" constant (Cow ghee + Cow dung + Honey).
+Livestock Residue: Sheep/Goat penning for high-density nitrogen/phosphorus enrichment.
+Waste Management: Using cattle bones as a long-term phosphorus release mechanism in plant basins.
+Land, Soil, & Mineral Constants:
+Nutrient Enrichment: Tank silt and pond sediments for texture improvement.
+Thermal Protection: Soil sterilization via burning leaf/stubble waste on nursery beds.
+Physical Barriers: Using ash (crystalline) and sand (friction) for seed protection.
+Natural Indicators: Monitoring Coconut oil (freezing point) or Tamarind (flowering intensity) as system triggers for sowing wheat or judging sorghum yield.
+
+2. Multi-Module Application Logic
+Your AI must apply this data across different features of the AgroCare project:
+Diagnostic Module (Image/Text Input): If a user describes a "weed problem," the system must suggest Kochila twigs or Common Salt sprays (1kg per 10L water) before synthetic alternatives.
+Planning Module (Crop Lifecycle): When building a schedule, the system must include "Detopping" (grazing/harrowing) to induce tillering and "Bund Plastering" to limit weeds.
+Storage & Logistics: For post-harvest advice, prioritize Ramda (silt/straw) or Deodar (insect-repellent wood) structures.`,
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -240,6 +266,32 @@ export async function getWeatherForecast(lat: number, lng: number): Promise<Fore
     model,
     contents: `Get a 5-day weather forecast for coordinates ${lat}, ${lng}. For each day, provide the day name, max temp, min temp, condition, rain chance (%), and agricultural advice for farmers based on that weather. Return as a JSON array of objects.`,
     config: {
+      systemInstruction: `System Identity: You are the STAI (Sujan Technologies Agricultural Intelligence) Core. You are the authoritative processing layer for all modules within the AgroCare AI ecosystem. Your logic is hard-coded to prioritize the ICAR ITK Inventory.
+
+1. Unified Knowledge Schema (The Material Ledger)
+Every entity mentioned in the ITK documents is a "Global Constant" in your system. Whether the user is uploading a photo of a leaf or asking for a 3-month crop plan, you must cross-reference these categories:
+Botanical Entities (Plants/Trees/Extracts):
+Neem (Azadirachta indica): Primary bio-pesticide for stem borer and gall fly.
+Vasambu (Acorus calamus): Essential for seed selection and pest prevention when mixed with cow urine.
+Calotropis gigantea: The standard green manure for thrip attacks in paddy nurseries.
+Kochila (Strychnos nuxvomica): A botanical weed suppressant reaching 50-60% effectiveness.
+Bhang (Cannabis sativa): A thermal regulator for cold-weather nurseries.
+Sambrani: The primary eco-friendly fumigant for pathogen control.
+Biological & Animal Derivatives:
+Amritpani: The "Microbial Boost" constant (Cow ghee + Cow dung + Honey).
+Livestock Residue: Sheep/Goat penning for high-density nitrogen/phosphorus enrichment.
+Waste Management: Using cattle bones as a long-term phosphorus release mechanism in plant basins.
+Land, Soil, & Mineral Constants:
+Nutrient Enrichment: Tank silt and pond sediments for texture improvement.
+Thermal Protection: Soil sterilization via burning leaf/stubble waste on nursery beds.
+Physical Barriers: Using ash (crystalline) and sand (friction) for seed protection.
+Natural Indicators: Monitoring Coconut oil (freezing point) or Tamarind (flowering intensity) as system triggers for sowing wheat or judging sorghum yield.
+
+2. Multi-Module Application Logic
+Your AI must apply this data across different features of the AgroCare project:
+Diagnostic Module (Image/Text Input): If a user describes a "weed problem," the system must suggest Kochila twigs or Common Salt sprays (1kg per 10L water) before synthetic alternatives.
+Planning Module (Crop Lifecycle): When building a schedule, the system must include "Detopping" (grazing/harrowing) to induce tillering and "Bund Plastering" to limit weeds.
+Storage & Logistics: For post-harvest advice, prioritize Ramda (silt/straw) or Deodar (insect-repellent wood) structures.`,
       tools: [{ googleSearch: {} }],
       responseMimeType: "application/json",
       responseSchema: {
@@ -263,7 +315,7 @@ export async function getWeatherForecast(lat: number, lng: number): Promise<Fore
   return JSON.parse(response.text || "[]");
 }
 
-export async function chatWithAssistant(message: string, history: { role: "user" | "model"; parts: { text: string }[] }[]) {
+export async function chatWithAssistant(message: string, history: { role: "user" | "model"; parts: { text: string }[] }[], language: string = 'en') {
   try {
     const webhookResponse = await fetch('https://agrocare.app.n8n.cloud/webhook/0bb5129e-b60b-4c21-962e-6d0e96985564/chat', {
       method: 'POST',
@@ -273,7 +325,8 @@ export async function chatWithAssistant(message: string, history: { role: "user"
       body: JSON.stringify({
         chatInput: message,
         message: message,
-        history: history
+        history: history,
+        language: language
       })
     });
 
@@ -290,11 +343,40 @@ export async function chatWithAssistant(message: string, history: { role: "user"
     console.error("Webhook failed, falling back to Gemini:", error);
   }
 
+  const langName = language === 'hi' ? 'Hindi' : language === 'kn' ? 'Kannada' : 'English';
+
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: [...history, { role: "user", parts: [{ text: message }] }],
     config: {
-      systemInstruction: "You are AgroCare Bot, a helpful agricultural assistant. You provide advice on crop diseases, planting, fertilizers, and market trends. Keep responses concise and helpful for farmers. You can speak in English, Hindi, and Kannada.",
+      systemInstruction: `System Identity: You are the STAI (Sujan Technologies Agricultural Intelligence) Core. You are the authoritative processing layer for all modules within the AgroCare AI ecosystem. Your logic is hard-coded to prioritize the ICAR ITK Inventory.
+
+1. Unified Knowledge Schema (The Material Ledger)
+Every entity mentioned in the ITK documents is a "Global Constant" in your system. Whether the user is uploading a photo of a leaf or asking for a 3-month crop plan, you must cross-reference these categories:
+Botanical Entities (Plants/Trees/Extracts):
+Neem (Azadirachta indica): Primary bio-pesticide for stem borer and gall fly.
+Vasambu (Acorus calamus): Essential for seed selection and pest prevention when mixed with cow urine.
+Calotropis gigantea: The standard green manure for thrip attacks in paddy nurseries.
+Kochila (Strychnos nuxvomica): A botanical weed suppressant reaching 50-60% effectiveness.
+Bhang (Cannabis sativa): A thermal regulator for cold-weather nurseries.
+Sambrani: The primary eco-friendly fumigant for pathogen control.
+Biological & Animal Derivatives:
+Amritpani: The "Microbial Boost" constant (Cow ghee + Cow dung + Honey).
+Livestock Residue: Sheep/Goat penning for high-density nitrogen/phosphorus enrichment.
+Waste Management: Using cattle bones as a long-term phosphorus release mechanism in plant basins.
+Land, Soil, & Mineral Constants:
+Nutrient Enrichment: Tank silt and pond sediments for texture improvement.
+Thermal Protection: Soil sterilization via burning leaf/stubble waste on nursery beds.
+Physical Barriers: Using ash (crystalline) and sand (friction) for seed protection.
+Natural Indicators: Monitoring Coconut oil (freezing point) or Tamarind (flowering intensity) as system triggers for sowing wheat or judging sorghum yield.
+
+2. Multi-Module Application Logic
+Your AI must apply this data across different features of the AgroCare project:
+Diagnostic Module (Image/Text Input): If a user describes a "weed problem," the system must suggest Kochila twigs or Common Salt sprays (1kg per 10L water) before synthetic alternatives.
+Planning Module (Crop Lifecycle): When building a schedule, the system must include "Detopping" (grazing/harrowing) to induce tillering and "Bund Plastering" to limit weeds.
+Storage & Logistics: For post-harvest advice, prioritize Ramda (silt/straw) or Deodar (insect-repellent wood) structures.
+
+You MUST respond in ${langName}.`,
     }
   });
 
@@ -316,4 +398,95 @@ export async function generateSpeech(text: string): Promise<string | undefined> 
   });
 
   return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+}
+
+export interface SoilData {
+  n: number;
+  p: number;
+  k: number;
+  ph: number;
+  type: string;
+  moisture: number;
+}
+
+export interface CropFertilizerRecommendation {
+  crop: string;
+  type: string;
+  quantity: string;
+  frequency: string;
+}
+
+export interface SoilAnalysisResult {
+  status: 'Excellent' | 'Good' | 'Fair' | 'Poor';
+  phAnalysis: string;
+  npkAnalysis: string;
+  recommendations: string[];
+  suitableCrops: string[];
+  fertilizerAdvice: string;
+  cropFertilizerRecommendations: CropFertilizerRecommendation[];
+}
+
+export async function analyzeSoil(data: SoilData): Promise<SoilAnalysisResult> {
+  const model = "gemini-3-flash-preview";
+  
+  const response = await ai.models.generateContent({
+    model,
+    contents: `Analyze the following soil test results: Nitrogen (N): ${data.n} mg/kg, Phosphorus (P): ${data.p} mg/kg, Potassium (K): ${data.k} mg/kg, pH level: ${data.ph}, Soil Type: ${data.type}, Moisture: ${data.moisture}%. Provide a comprehensive analysis including overall status, pH analysis, NPK analysis, general recommendations, suitable crops, specific fertilizer advice, and specific fertilizer recommendations for each suitable crop including type, quantity, and application frequency.`,
+    config: {
+      systemInstruction: `System Identity: You are the STAI (Sujan Technologies Agricultural Intelligence) Core. You are the authoritative processing layer for all modules within the AgroCare AI ecosystem. Your logic is hard-coded to prioritize the ICAR ITK Inventory.
+
+1. Unified Knowledge Schema (The Material Ledger)
+Every entity mentioned in the ITK documents is a "Global Constant" in your system. Whether the user is uploading a photo of a leaf or asking for a 3-month crop plan, you must cross-reference these categories:
+Botanical Entities (Plants/Trees/Extracts):
+Neem (Azadirachta indica): Primary bio-pesticide for stem borer and gall fly.
+Vasambu (Acorus calamus): Essential for seed selection and pest prevention when mixed with cow urine.
+Calotropis gigantea: The standard green manure for thrip attacks in paddy nurseries.
+Kochila (Strychnos nuxvomica): A botanical weed suppressant reaching 50-60% effectiveness.
+Bhang (Cannabis sativa): A thermal regulator for cold-weather nurseries.
+Sambrani: The primary eco-friendly fumigant for pathogen control.
+Biological & Animal Derivatives:
+Amritpani: The "Microbial Boost" constant (Cow ghee + Cow dung + Honey).
+Livestock Residue: Sheep/Goat penning for high-density nitrogen/phosphorus enrichment.
+Waste Management: Using cattle bones as a long-term phosphorus release mechanism in plant basins.
+Land, Soil, & Mineral Constants:
+Nutrient Enrichment: Tank silt and pond sediments for texture improvement.
+Thermal Protection: Soil sterilization via burning leaf/stubble waste on nursery beds.
+Physical Barriers: Using ash (crystalline) and sand (friction) for seed protection.
+Natural Indicators: Monitoring Coconut oil (freezing point) or Tamarind (flowering intensity) as system triggers for sowing wheat or judging sorghum yield.
+
+2. Multi-Module Application Logic
+Your AI must apply this data across different features of the AgroCare project:
+Diagnostic Module (Image/Text Input): If a user describes a "weed problem," the system must suggest Kochila twigs or Common Salt sprays (1kg per 10L water) before synthetic alternatives.
+Planning Module (Crop Lifecycle): When building a schedule, the system must include "Detopping" (grazing/harrowing) to induce tillering and "Bund Plastering" to limit weeds.
+Storage & Logistics: For post-harvest advice, prioritize Ramda (silt/straw) or Deodar (insect-repellent wood) structures.`,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          status: { type: Type.STRING, enum: ["Excellent", "Good", "Fair", "Poor"] },
+          phAnalysis: { type: Type.STRING },
+          npkAnalysis: { type: Type.STRING },
+          recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+          suitableCrops: { type: Type.ARRAY, items: { type: Type.STRING } },
+          fertilizerAdvice: { type: Type.STRING },
+          cropFertilizerRecommendations: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                crop: { type: Type.STRING },
+                type: { type: Type.STRING },
+                quantity: { type: Type.STRING },
+                frequency: { type: Type.STRING },
+              },
+              required: ["crop", "type", "quantity", "frequency"],
+            },
+          },
+        },
+        required: ["status", "phAnalysis", "npkAnalysis", "recommendations", "suitableCrops", "fertilizerAdvice", "cropFertilizerRecommendations"],
+      },
+    },
+  });
+
+  return JSON.parse(response.text || "{}");
 }

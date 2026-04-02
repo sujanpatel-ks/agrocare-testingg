@@ -191,8 +191,8 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto pb-48">
-        <div className="relative w-full h-64 bg-gray-200 overflow-hidden">
+      <main className="flex-1 overflow-y-auto pb-48 bg-[#f8f9fa]">
+        <div className="relative w-full h-72 bg-black overflow-hidden border-b-4 border-primary/20">
           <img 
             src={imageUrl || "https://picsum.photos/seed/leaf/600/400"} 
             alt="Analyzed Leaf" 
@@ -200,51 +200,75 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
             referrerPolicy="no-referrer"
           />
           
+          {/* Scanning Grid Overlay */}
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,0,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,0,0.1)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none opacity-30"></div>
+
+          {/* Technical Corner Markers */}
+          <div className="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-primary/70"></div>
+          <div className="absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-primary/70"></div>
+          <div className="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-primary/70"></div>
+          <div className="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-primary/70"></div>
+
+          {/* Scan Metadata */}
+          <div className="absolute bottom-4 left-4 text-[10px] font-mono text-primary/80 uppercase tracking-widest">
+            <div>SCAN ID: {Math.random().toString(36).substring(2, 10).toUpperCase()}</div>
+            <div>RES: HIGH</div>
+            <div>MODE: SPECTRAL</div>
+          </div>
+
           {result.boundingBox && result.boundingBox.length === 4 && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5, duration: 0.5, type: "spring" }}
-              className="absolute border-2 border-red-500 rounded-sm pointer-events-none flex justify-center"
+            <div 
+              className="absolute border-2 border-red-500 bg-red-500/10 pointer-events-none flex justify-center backdrop-blur-[1px]"
               style={{
                 top: `${(result.boundingBox[0] / 1000) * 100}%`,
                 left: `${(result.boundingBox[1] / 1000) * 100}%`,
                 height: `${((result.boundingBox[2] - result.boundingBox[0]) / 1000) * 100}%`,
                 width: `${((result.boundingBox[3] - result.boundingBox[1]) / 1000) * 100}%`,
-                boxShadow: '0 0 15px rgba(239, 68, 68, 0.3), inset 0 0 15px rgba(239, 68, 68, 0.3)',
+                boxShadow: '0 0 20px rgba(239, 68, 68, 0.4), inset 0 0 20px rgba(239, 68, 68, 0.2)',
               }}
             >
-              <div className="absolute -top-8 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap flex items-center gap-1">
-                <AlertTriangle size={12} />
-                {language === 'hi' ? result.diseaseHi : language === 'kn' ? result.diseaseKn : result.disease}
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-l-transparent border-r-transparent border-t-red-500"></div>
+              {/* Target Crosshairs */}
+              <div className="absolute -top-2 -left-2 w-3 h-3 border-t-2 border-l-2 border-red-500"></div>
+              <div className="absolute -top-2 -right-2 w-3 h-3 border-t-2 border-r-2 border-red-500"></div>
+              <div className="absolute -bottom-2 -left-2 w-3 h-3 border-b-2 border-l-2 border-red-500"></div>
+              <div className="absolute -bottom-2 -right-2 w-3 h-3 border-b-2 border-r-2 border-red-500"></div>
+
+              <div className="absolute -top-8 bg-red-600 text-white text-[10px] font-mono font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap flex items-center gap-1 tracking-wider uppercase border border-red-400">
+                <AlertTriangle size={10} />
+                TARGET AQUIRED: {language === 'hi' ? result.diseaseHi : language === 'kn' ? result.diseaseKn : result.disease}
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-l-transparent border-r-transparent border-t-red-600"></div>
               </div>
-            </motion.div>
+            </div>
           )}
 
-          <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold border shadow-md ${severityColor}`}>
+          <div className={`absolute top-4 right-4 px-3 py-1 rounded-sm text-[10px] font-mono font-bold border uppercase tracking-widest backdrop-blur-md ${severityColor.replace('bg-', 'bg-').replace('100', '900/80').replace('text-', 'text-').replace('700', '100')}`}>
             {result.severity} {t.severity}
           </div>
         </div>
 
-        <div className="px-5 pt-6 pb-4">
+        <div className="px-5 pt-6 pb-6 bg-white border-b border-gray-200 shadow-sm relative z-10 -mt-2 rounded-t-2xl">
           <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 leading-tight">{result.crop} {result.disease}</h2>
-              <h3 className="text-xl text-gray-600 mt-1 font-medium">
+            <div className="flex-1 pr-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2 h-2 rounded-full bg-primary"></span>
+                <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Analysis Complete</span>
+              </div>
+              <h2 className="text-2xl font-black text-gray-900 leading-tight uppercase tracking-tight">{result.crop} {result.disease}</h2>
+              <h3 className="text-sm font-mono text-gray-500 mt-2 font-medium uppercase tracking-widest border-l-2 border-primary pl-3 py-0.5 bg-gray-50">
                 {language === 'hi' ? result.diseaseHi : language === 'kn' ? result.diseaseKn : result.disease}
               </h3>
             </div>
             <button 
               onClick={handleSpeak}
-              className={`p-2 rounded-full transition-colors ${isSpeaking ? 'bg-blue-600 text-white animate-pulse' : 'bg-blue-50 text-blue-600'}`}
+              className={`p-3 rounded-xl transition-all shadow-sm border ${isSpeaking ? 'bg-blue-600 text-white border-blue-700 animate-pulse' : 'bg-white text-blue-600 border-gray-200 hover:bg-blue-50'}`}
             >
-              <Volume2 size={24} />
+              <Volume2 size={20} />
             </button>
           </div>
-          <p className="mt-3 text-sm text-gray-600 leading-relaxed">
+          <div className="mt-5 p-4 bg-green-50 rounded-xl border border-green-100 font-roboto text-sm text-green-900 leading-relaxed shadow-inner">
+            <div className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-2 border-b border-green-200 pb-1">Diagnostic Summary</div>
             {result.description}
-          </p>
+          </div>
         </div>
 
         <div className="h-2 bg-gray-50 border-t border-b border-gray-100"></div>

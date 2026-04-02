@@ -1,4 +1,4 @@
-export type Screen = 'home' | 'market' | 'suppliers' | 'community' | 'calendar' | 'diagnosis' | 'chat' | 'scan' | 'crop-details' | 'profile' | 'scheme-finder';
+export type Screen = 'home' | 'market' | 'suppliers' | 'community' | 'calendar' | 'diagnosis' | 'chat' | 'scan' | 'crop-details' | 'profile' | 'scheme-finder' | 'soil-analysis';
 
 export type Language = 'en' | 'hi' | 'kn';
 

@@ -192,7 +192,9 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
           </button>
           <div className="flex-1 text-center">
             <h1 className="text-xl font-black tracking-wide text-white">Market Prices</h1>
-            <p className="text-xs font-bold text-green-200/80 uppercase tracking-widest mt-0.5">मंडी भाव</p>
+            <p className="text-[10px] font-bold text-green-200/80 uppercase tracking-widest mt-1 flex items-center justify-center gap-1">
+              <MapPin size={10} /> Tumkur, Karnataka, India
+            </p>
           </div>
           <button className="flex items-center justify-center w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors backdrop-blur-sm relative">
             <Bell size={20} />
@@ -341,6 +343,50 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
           </div>
         ) : (
           <>
+            {/* NEW: Active Alerts */}
+            {Object.keys(alerts).length > 0 && (!searchQuery && selectedCategory === 'All') && (
+              <div className="mb-6">
+                <h2 className="text-lg font-bold text-earth mb-3 flex items-center gap-2">
+                  <Bell size={18} className="text-primary" /> Active Price Alerts
+                </h2>
+                <div className="flex flex-col gap-3">
+                  {Object.entries(alerts).map(([cropId, alert]) => {
+                    const crop = crops.find(c => c.id === cropId) || WATCHLIST_CROPS.find(c => c.id === cropId);
+                    if (!crop) return null;
+                    return (
+                      <div key={cropId} className="bg-white p-3 rounded-xl shadow-sm border border-primary/20 flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">{crop.icon}</span>
+                          <div>
+                            <p className="font-bold text-earth text-sm">{crop.name}</p>
+                            <p className="text-xs text-gray-500">Current: ₹{crop.price}/q</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className={`px-3 py-1 rounded-lg text-xs font-bold ${alert.direction === 'above' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                            {alert.direction === 'above' ? 'Above' : 'Below'} ₹{alert.threshold}
+                          </div>
+                          <button 
+                            onClick={() => {
+                              setAlerts(prev => {
+                                const newAlerts = { ...prev };
+                                delete newAlerts[cropId];
+                                return newAlerts;
+                              });
+                              toast.success(`Alert removed for ${crop.name}`);
+                            }}
+                            className="p-1.5 bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 rounded-lg transition-colors"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* NEW: My Watchlist */}
             {(!searchQuery && selectedCategory === 'All') && (
               <div className="mb-6">

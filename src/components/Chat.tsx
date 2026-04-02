@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MoreVertical, Bot, Send, Mic, Camera, Volume2, CheckCheck, Leaf, AlertTriangle, Square } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Bot, Send, Mic, Camera, Volume2, CheckCheck, Leaf, AlertTriangle, Square, Loader2, Globe } from 'lucide-react';
 import { chatWithAssistant, generateSpeech } from '../services/gemini';
 import { Language } from '../types';
 
@@ -13,27 +13,39 @@ interface Message {
 interface ChatProps {
   onBack: () => void;
   language: Language;
+  onToggleLanguage: () => void;
 }
 
-export const Chat: React.FC<ChatProps> = ({ onBack, language }) => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'model',
-      text: language === 'hi' 
-        ? "नमस्ते! 🙏 मैं आपका एग्रोकेयर सहायक हूं। आपके द्वारा अपलोड की गई तस्वीर के आधार पर, मुझे आपकी टमाटर की फसल पर लेट ब्लाइट के लक्षण दिखाई दे रहे हैं। मैं इसे ठीक करने में आपकी कैसे मदद कर सकता हूं?" 
-        : language === 'kn'
-        ? "ನಮಸ್ಕಾರ! 🙏 ನಾನು ನಿಮ್ಮ ಅಗ್ರೋಕೇರ್ ಸಹಾಯಕ. ನೀವು ಅಪ್‌ಲೋಡ್ ಮಾಡಿದ ಫೋಟೋ ಆಧಾರದ ಮೇಲೆ, ನಿಮ್ಮ ಟೊಮೆಟೊ ಬೆಳೆಯಲ್ಲಿ ಲೇಟ್ ಬ್ಲೈಟ್ ಲಕ್ಷಣಗಳು ಕಾಣಿಸುತ್ತಿವೆ. ಇದನ್ನು ಗುಣಪಡಿಸಲು ನಾನು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಲಿ?"
-        : "Namaste! 🙏 I'm your AgroCare assistant. Based on the photo you uploaded, I see signs of Late Blight on your tomato crop. How can I help you treat it?",
-      time: '10:30 AM'
-    }
-  ]);
+export const Chat: React.FC<ChatProps> = ({ onBack, language, onToggleLanguage }) => {
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  useEffect(() => {
+    setMessages(prev => {
+      if (prev.length <= 1) {
+        return [
+          {
+            role: 'model',
+            text: language === 'hi' 
+              ? "नमस्ते! 🙏 मैं आपका एग्रोकेयर सहायक हूं। आपके द्वारा अपलोड की गई तस्वीर के आधार पर, मुझे आपकी टमाटर की फसल पर लेट ब्लाइट के लक्षण दिखाई दे रहे हैं। मैं इसे ठीक करने में आपकी कैसे मदद कर सकता हूं?" 
+              : language === 'kn'
+              ? "ನಮಸ್ಕಾರ! 🙏 ನಾನು ನಿಮ್ಮ ಅಗ್ರೋಕೇರ್ ಸಹಾಯಕ. ನೀವು ಅಪ್‌ಲೋಡ್ ಮಾಡಿದ ಫೋಟೋ ಆಧಾರದ ಮೇಲೆ, ನಿಮ್ಮ ಟೊಮೆಟೊ ಬೆಳೆಯಲ್ಲಿ ಲೇಟ್ ಬ್ಲೈಟ್ ಲಕ್ಷಣಗಳು ಕಾಣಿಸುತ್ತಿವೆ. ಇದನ್ನು ಗುಣಪಡಿಸಲು ನಾನು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಲಿ?"
+              : "Namaste! 🙏 I'm your AgroCare assistant. Based on the photo you uploaded, I see signs of Late Blight on your tomato crop. How can I help you treat it?",
+            time: '10:30 AM'
+          }
+        ];
+      }
+      return prev;
+    });
+  }, [language]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [playingAudioIndex, setPlayingAudioIndex] = useState<number | null>(null);
+  const [loadingAudioIndex, setLoadingAudioIndex] = useState<number | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const currentAudioRequestRef = useRef<number | null>(null);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -100,7 +112,8 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language }) => {
   };
 
   const handlePlayAudio = async (text: string, index: number) => {
-    if (playingAudioIndex === index) {
+    // If clicking the currently playing or loading audio, stop it
+    if (playingAudioIndex === index || loadingAudioIndex === index) {
       if (audioSourceRef.current) {
         try {
           audioSourceRef.current.stop();
@@ -108,13 +121,39 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language }) => {
         audioSourceRef.current = null;
       }
       setPlayingAudioIndex(null);
+      setLoadingAudioIndex(null);
+      currentAudioRequestRef.current = null;
       return;
     }
 
+    // Stop any currently playing audio
+    if (audioSourceRef.current) {
+      try {
+        audioSourceRef.current.stop();
+      } catch (e) {}
+      audioSourceRef.current = null;
+    }
+    setPlayingAudioIndex(null);
+
     try {
-      setPlayingAudioIndex(index);
+      setLoadingAudioIndex(index);
+      
+      // Generate a unique ID for this request to handle race conditions
+      const requestId = Date.now();
+      currentAudioRequestRef.current = requestId;
+      
       const base64Audio = await generateSpeech(text);
+      
+      // If the user clicked stop or started another audio while this was loading
+      if (currentAudioRequestRef.current !== requestId) {
+        return;
+      }
+      
+      setLoadingAudioIndex(null);
+      
       if (base64Audio) {
+        setPlayingAudioIndex(index);
+        
         if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
           const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
           audioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
@@ -141,29 +180,24 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language }) => {
           channelData[i] = int16Array[i] / 32768.0;
         }
         
-        // Stop any existing source
-        if (audioSourceRef.current) {
-          try {
-            audioSourceRef.current.stop();
-          } catch (e) {}
-        }
-        
         const source = audioCtx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(audioCtx.destination);
         
         source.onended = () => {
-          setPlayingAudioIndex(null);
-          audioSourceRef.current = null;
+          if (currentAudioRequestRef.current === requestId) {
+            setPlayingAudioIndex(null);
+            audioSourceRef.current = null;
+            currentAudioRequestRef.current = null;
+          }
         };
         
         audioSourceRef.current = source;
         source.start();
-      } else {
-        setPlayingAudioIndex(null);
       }
     } catch (error) {
       console.error("Failed to play audio:", error);
+      setLoadingAudioIndex(null);
       setPlayingAudioIndex(null);
     }
   };
@@ -189,7 +223,7 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language }) => {
           parts: [{ text: m.text }]
         }));
 
-      const response = await chatWithAssistant(inputText, history);
+      const response = await chatWithAssistant(inputText, history, language);
       
       const botMessage: Message = {
         role: 'model',
@@ -226,6 +260,9 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language }) => {
             </p>
           </div>
         </div>
+        <button onClick={onToggleLanguage} className="p-2 mr-1 rounded-full hover:bg-primary transition flex items-center justify-center" aria-label="Toggle Language">
+          <Globe size={24} />
+        </button>
         <button className="p-2 rounded-full hover:bg-primary transition">
           <MoreVertical size={24} />
         </button>
@@ -262,6 +299,8 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language }) => {
                   >
                     {playingAudioIndex === i ? (
                       <><Square size={16} className="fill-current" /> Stop</>
+                    ) : loadingAudioIndex === i ? (
+                      <><Loader2 size={16} className="animate-spin" /> Loading...</>
                     ) : (
                       <><Volume2 size={16} /> Listen</>
                     )}

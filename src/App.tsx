@@ -10,6 +10,7 @@ import { Diagnosis } from './components/Diagnosis';
 import { Chat } from './components/Chat';
 import { Profile } from './components/Profile';
 import { SchemeFinder } from './components/SchemeFinder';
+import { SoilAnalysis } from './components/SoilAnalysis';
 import { BottomNav } from './components/BottomNav';
 import { DiagnosisResult, diagnoseCrop } from './services/gemini';
 import { motion, AnimatePresence } from 'motion/react';
@@ -47,6 +48,13 @@ export default function App() {
     try {
       const result = await diagnoseCrop(base64);
       setDiagnosisResult(result);
+      
+      // Save to backend
+      fetch('/api/diagnoses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result)
+      }).catch(err => console.error("Failed to save diagnosis to backend:", err));
     } catch (error) {
       console.error("Diagnosis failed:", error);
       // Fallback logic already exists in handleFileSelect, but let's keep it consistent
@@ -113,6 +121,13 @@ export default function App() {
         try {
           const result = await diagnoseCrop(base64);
           setDiagnosisResult(result);
+          
+          // Save to backend
+          fetch('/api/diagnoses', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(result)
+          }).catch(err => console.error("Failed to save diagnosis to backend:", err));
         } catch (error) {
           console.error("Diagnosis failed:", error);
           // Fallback to mock data if API fails or for demo purposes
@@ -267,11 +282,13 @@ export default function App() {
           />
         );
       case 'chat':
-        return <Chat onBack={() => setActiveScreen('home')} language={language} />;
+        return <Chat onBack={() => setActiveScreen('home')} language={language} onToggleLanguage={toggleLanguage} />;
       case 'profile':
         return <Profile onBack={() => setActiveScreen('home')} language={language} onToggleLanguage={toggleLanguage} />;
       case 'scheme-finder':
         return <SchemeFinder onBack={() => setActiveScreen('community')} language={language} />;
+      case 'soil-analysis':
+        return <SoilAnalysis onBack={() => setActiveScreen('home')} language={language} />;
       default:
         return (
           <Dashboard 
@@ -301,7 +318,7 @@ export default function App() {
         </motion.div>
       </AnimatePresence>
       
-      {activeScreen !== 'chat' && activeScreen !== 'diagnosis' && activeScreen !== 'crop-details' && !isDiagnosing && (
+      {activeScreen !== 'chat' && activeScreen !== 'diagnosis' && activeScreen !== 'crop-details' && activeScreen !== 'soil-analysis' && !isDiagnosing && (
         <BottomNav 
           activeScreen={activeScreen} 
           onScreenChange={(screen) => setActiveScreen(screen)} 

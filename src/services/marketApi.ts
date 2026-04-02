@@ -31,8 +31,8 @@ const getCategoryForCommodity = (commodity: string): 'Grains' | 'Vegetables' | '
 
 export async function fetchKarnatakaMarketPrices(): Promise<CropPrice[]> {
   try {
-    // Try to fetch Karnataka data specifically
-    const response = await fetch(`${BASE_URL}?api-key=${API_KEY}&format=json&filters[state]=Karnataka&limit=50`);
+    // Try to fetch Karnataka data specifically, prioritizing Tumkur
+    const response = await fetch(`${BASE_URL}?api-key=${API_KEY}&format=json&filters[state]=Karnataka&filters[district]=Tumkur&limit=50`);
     
     if (!response.ok) {
       throw new Error('Network response was not ok');

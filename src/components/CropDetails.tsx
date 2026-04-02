@@ -55,20 +55,31 @@ interface CropDetailsProps {
   onFindSuppliers: () => void;
 }
 
+// Calculate distance between two coordinates in km
+function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; // Earth's radius in km
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
+
 export const CropDetails: React.FC<CropDetailsProps> = ({ crop, onBack, language, onFindSuppliers }) => {
   const [sortBy, setSortBy] = useState<'recency' | 'rating'>('recency');
   const [filterRating, setFilterRating] = useState<number | 'all'>('all');
   const [showFilters, setShowFilters] = useState(false);
   const { latitude, longitude } = useGeolocation();
-  const initialLocationRef = React.useRef<{lat: number, lng: number} | null>(null);
 
   // Generate deterministic supplier locations based on user location
   const mapSuppliers = useMemo(() => {
     if (!latitude || !longitude) return [];
-    
-    if (!initialLocationRef.current) {
-      initialLocationRef.current = { lat: latitude, lng: longitude };
-    }
     
     return SUPPLIERS.map((s, i) => {
       const pseudoRandom1 = Math.sin(i * 12.9898) * 43758.5453;
@@ -76,9 +87,10 @@ export const CropDetails: React.FC<CropDetailsProps> = ({ crop, onBack, language
       const offsetLat = (pseudoRandom1 - Math.floor(pseudoRandom1) - 0.5) * 0.05;
       const offsetLng = (pseudoRandom2 - Math.floor(pseudoRandom2) - 0.5) * 0.05;
       
-      const lat = s.lat || initialLocationRef.current!.lat + offsetLat;
-      const lng = s.lng || initialLocationRef.current!.lng + offsetLng;
-      return { ...s, lat, lng };
+      const lat = s.lat || latitude + offsetLat;
+      const lng = s.lng || longitude + offsetLng;
+      const actualDistance = getDistanceKm(latitude, longitude, lat, lng).toFixed(1);
+      return { ...s, lat, lng, distance: `${actualDistance} km` };
     });
   }, [latitude, longitude]);
 

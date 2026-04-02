@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, User, Settings, Bell, Shield, HelpCircle, LogOut, ChevronRight, MapPin, Edit3, Globe, Save, X, Camera, MessageSquare, Award, Star, Phone, Droplets, Sprout } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Language } from '../types';
 
 interface ProfileProps {
@@ -22,17 +23,43 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
   const [isEditing, setIsEditing] = useState(false);
   const [savedData, setSavedData] = useState(INITIAL_DATA);
   const [formData, setFormData] = useState(INITIAL_DATA);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const storedData = localStorage.getItem('agrocare_profile');
+        if (storedData) {
+          const parsedData = JSON.parse(storedData);
+          setSavedData(parsedData);
+          setFormData(parsedData);
+        }
+      } catch (error) {
+        console.error("Failed to load profile:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = () => {
-    // Dummy save action
-    console.log('Saving profile data:', formData);
-    setSavedData(formData);
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+      // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      localStorage.setItem('agrocare_profile', JSON.stringify(formData));
+      setSavedData(formData);
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to save profile:", error);
+    }
   };
 
   const handleCancel = () => {
@@ -207,35 +234,47 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
         Main Content Section
         Reduced padding and spacing to make better use of whitespace and prevent overlap.
       */}
-      <main className="flex-1 pb-24 px-4 pt-4 space-y-4">
+      <main className="flex-1 overflow-y-auto overscroll-contain pb-24 px-4 pt-4 space-y-4" style={{ WebkitOverflowScrolling: 'touch' }}>
         {/* Stats Section */}
-        <section className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center text-center">
+        <motion.section 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="grid grid-cols-3 gap-3"
+        >
+          <motion.div whileTap={{ scale: 0.95 }} className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer">
             <div className="w-10 h-10 bg-green-50 text-green-600 rounded-full flex items-center justify-center mb-2">
               <Camera size={20} />
             </div>
             <span className="text-xl font-black text-earth">24</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Scans</span>
-          </div>
-          <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center text-center">
+          </motion.div>
+          <motion.div whileTap={{ scale: 0.95 }} className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer">
             <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-2">
               <MessageSquare size={20} />
             </div>
             <span className="text-xl font-black text-earth">12</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Posts</span>
-          </div>
-          <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center text-center">
+          </motion.div>
+          <motion.div whileTap={{ scale: 0.95 }} className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center text-center cursor-pointer">
             <div className="w-10 h-10 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center mb-2">
               <Award size={20} />
             </div>
             <span className="text-xl font-black text-earth">Pro</span>
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Status</span>
-          </div>
-        </section>
+          </motion.div>
+        </motion.section>
 
         {/* Upgrade Banner */}
-        <section>
-          <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg shadow-orange-500/20 relative overflow-hidden">
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <motion.div 
+            whileTap={{ scale: 0.98 }}
+            className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg shadow-orange-500/20 relative overflow-hidden cursor-pointer"
+          >
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-12 -mt-12 blur-2xl"></div>
             <div className="relative z-10 flex items-center justify-between gap-4">
               <div className="flex-1">
@@ -245,15 +284,19 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
                 </div>
                 <p className="text-white/90 text-xs font-medium leading-relaxed">{t.upgradeDesc}</p>
               </div>
-              <button className="bg-white text-orange-600 px-4 py-2.5 rounded-xl font-black text-xs shadow-sm hover:bg-orange-50 transition-colors shrink-0">
+              <motion.button whileTap={{ scale: 0.95 }} className="bg-white text-orange-600 px-4 py-2.5 rounded-xl font-black text-xs shadow-sm hover:bg-orange-50 transition-colors shrink-0">
                 {t.upgradeBtn}
-              </button>
+              </motion.button>
             </div>
-          </div>
-        </section>
+          </motion.div>
+        </motion.section>
 
         {/* Farm Details */}
-        <section>
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3 px-2">{t.farmDetails}</h3>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-4 border-b border-gray-50 flex justify-between items-center">
@@ -322,29 +365,42 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
               )}
             </div>
           </div>
-        </section>
+        </motion.section>
 
-        {isEditing && (
-          <div className="flex gap-3 pt-2">
-            <button 
-              onClick={handleCancel}
-              className="flex-1 py-3 px-4 rounded-xl border-2 border-gray-200 text-gray-600 font-bold flex items-center justify-center gap-2 hover:bg-gray-50 transition active:scale-95 text-sm"
+        <AnimatePresence>
+          {isEditing && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex gap-3 pt-2 overflow-hidden"
             >
-              <X size={18} />
-              {t.cancel}
-            </button>
-            <button 
-              onClick={handleSave}
-              className="flex-1 py-3 px-4 rounded-xl bg-primary text-white font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/30 hover:bg-primary-dark transition active:scale-95 text-sm"
-            >
-              <Save size={18} />
-              {t.save}
-            </button>
-          </div>
-        )}
+              <motion.button 
+                whileTap={{ scale: 0.95 }}
+                onClick={handleCancel}
+                className="flex-1 py-3 px-4 rounded-xl border-2 border-gray-200 text-gray-600 font-bold flex items-center justify-center gap-2 hover:bg-gray-50 transition text-sm"
+              >
+                <X size={18} />
+                {t.cancel}
+              </motion.button>
+              <motion.button 
+                whileTap={{ scale: 0.95 }}
+                onClick={handleSave}
+                className="flex-1 py-3 px-4 rounded-xl bg-primary text-white font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/30 hover:bg-primary-dark transition text-sm"
+              >
+                <Save size={18} />
+                {t.save}
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Settings */}
-        <section>
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
           <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3 px-2">{t.settings}</h3>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="w-full p-4 border-b border-gray-50 flex flex-col gap-3">
@@ -379,7 +435,7 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
               </div>
             </div>
             
-            <button className="w-full p-4 border-b border-gray-50 flex items-center justify-between hover:bg-gray-50 transition active:bg-gray-100">
+            <motion.button whileTap={{ scale: 0.98, backgroundColor: '#f9fafb' }} className="w-full p-4 border-b border-gray-50 flex items-center justify-between hover:bg-gray-50 transition">
               <div className="flex items-center gap-3 text-gray-700">
                 <div className="bg-orange-50 p-2 rounded-xl text-orange-600">
                   <Bell size={18} />
@@ -387,9 +443,9 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
                 <span className="font-medium text-sm">{t.notifications}</span>
               </div>
               <ChevronRight size={18} className="text-gray-400" />
-            </button>
+            </motion.button>
             
-            <button className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition active:bg-gray-100">
+            <motion.button whileTap={{ scale: 0.98, backgroundColor: '#f9fafb' }} className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition">
               <div className="flex items-center gap-3 text-gray-700">
                 <div className="bg-green-50 p-2 rounded-xl text-green-600">
                   <Shield size={18} />
@@ -397,14 +453,18 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
                 <span className="font-medium text-sm">{t.privacy}</span>
               </div>
               <ChevronRight size={18} className="text-gray-400" />
-            </button>
+            </motion.button>
           </div>
-        </section>
+        </motion.section>
 
         {/* Support */}
-        <section>
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <button className="w-full p-4 border-b border-gray-50 flex items-center justify-between hover:bg-gray-50 transition active:bg-gray-100">
+            <motion.button whileTap={{ scale: 0.98, backgroundColor: '#f9fafb' }} className="w-full p-4 border-b border-gray-50 flex items-center justify-between hover:bg-gray-50 transition">
               <div className="flex items-center gap-3 text-gray-700">
                 <div className="bg-purple-50 p-2 rounded-xl text-purple-600">
                   <HelpCircle size={18} />
@@ -412,22 +472,27 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
                 <span className="font-medium text-sm">{t.help}</span>
               </div>
               <ChevronRight size={18} className="text-gray-400" />
-            </button>
+            </motion.button>
             
-            <button className="w-full p-4 flex items-center justify-between hover:bg-red-50 transition active:bg-red-100 group">
+            <motion.button whileTap={{ scale: 0.98, backgroundColor: '#fef2f2' }} className="w-full p-4 flex items-center justify-between hover:bg-red-50 transition group">
               <div className="flex items-center gap-3 text-red-600">
                 <div className="bg-red-50 p-2 rounded-xl group-hover:bg-red-100 transition">
                   <LogOut size={18} />
                 </div>
                 <span className="font-bold text-sm">{t.logout}</span>
               </div>
-            </button>
+            </motion.button>
           </div>
-        </section>
+        </motion.section>
         
-        <div className="text-center pt-4 pb-8">
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6 }}
+          className="text-center pt-4 pb-8"
+        >
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">AgroCare App v1.0.0</p>
-        </div>
+        </motion.div>
       </main>
     </div>
   );

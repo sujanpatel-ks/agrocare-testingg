@@ -63,6 +63,22 @@ const ChangeView = ({ center, zoom }: { center: [number, number], zoom: number }
   return null;
 };
 
+// Calculate distance between two coordinates in km
+function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; // Earth's radius in km
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
+
 export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,16 +115,17 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
       setLoading(true);
       setTimeout(() => {
         let results = SUPPLIERS.map((s, i) => {
-          // Generate deterministic mock coordinates around initial user location
+          // Generate deterministic mock coordinates around current user location
           // We use the index 'i' to create a pseudo-random but consistent offset
           const pseudoRandom1 = Math.sin(i * 12.9898) * 43758.5453;
           const pseudoRandom2 = Math.cos(i * 78.233) * 43758.5453;
           const offsetLat = (pseudoRandom1 - Math.floor(pseudoRandom1) - 0.5) * 0.05;
           const offsetLng = (pseudoRandom2 - Math.floor(pseudoRandom2) - 0.5) * 0.05;
           
-          const lat = s.lat || initialLocationRef.current!.lat + offsetLat;
-          const lng = s.lng || initialLocationRef.current!.lng + offsetLng;
-          return { ...s, lat, lng };
+          const lat = s.lat || latitude + offsetLat;
+          const lng = s.lng || longitude + offsetLng;
+          const actualDistance = getDistanceKm(latitude, longitude, lat, lng).toFixed(1);
+          return { ...s, lat, lng, distance: `${actualDistance}` };
         });
 
         // Apply filters
@@ -139,7 +156,7 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
   }, [latitude, longitude, locationError, selectedTag, openingHours, maxDistance, minRating]);
 
   return (
-    <div className="absolute inset-0 flex flex-col bg-[#F8F9FA]">
+    <div className="flex flex-col h-[100dvh] bg-[#F8F9FA] overflow-hidden">
       <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between shrink-0 z-50 shadow-sm">
         <button onClick={onBack} className="p-2 -ml-2 rounded-full active:bg-gray-100 text-gray-600">
           <ArrowLeft size={24} />
@@ -242,9 +259,9 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
         </AnimatePresence>
       </div>
 
-      <main className="flex-1 flex flex-col overflow-hidden relative">
+      <main className="flex-1 flex flex-col overflow-hidden">
         {/* Map Visualization */}
-        <div className="relative h-[35vh] w-full bg-gray-200 shrink-0 z-10">
+        <div className="h-[45vh] shrink-0 w-full bg-gray-200 relative z-10">
           {latitude && longitude ? (
             <MapContainer 
               center={[latitude, longitude]} 
@@ -305,7 +322,7 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
             </div>
           )}
           
-          <div className="absolute bottom-12 right-6 flex flex-col gap-3 z-[1000]">
+          <div className="absolute top-4 right-4 flex flex-col gap-3 z-[1000]">
             <button 
               onClick={() => latitude && longitude && setSelectedSupplier(null)}
               className="bg-white p-4 rounded-2xl shadow-2xl border border-gray-100 text-[#1B5E20] active:scale-95 transition-all"
@@ -319,12 +336,12 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
         </div>
 
         {/* List Section */}
-        <div className="flex-1 bg-white relative rounded-t-[32px] -mt-6 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.3)] z-40 border-t border-gray-100 flex flex-col pb-24">
+        <div className="flex-1 bg-white rounded-t-[32px] shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.3)] z-20 -mt-6 flex flex-col overflow-hidden relative">
           <div className="w-full flex justify-center pt-4 pb-2 shrink-0 bg-white rounded-t-[32px] z-50">
             <div className="w-16 h-1.5 bg-gray-200 rounded-full"></div>
           </div>
           
-          <div className="px-6 py-4 flex-1 overflow-y-auto">
+          <div className="px-6 py-4 flex-1 overflow-y-auto overscroll-contain pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">
                 {loading ? 'Searching...' : `${suppliers.length} Suppliers Found`}
@@ -419,11 +436,14 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
-                            window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(supplier.name + ' ' + (supplier.address || ''))}`, '_blank');
+                            const destination = supplier.lat && supplier.lng 
+                              ? `${supplier.lat},${supplier.lng}`
+                              : encodeURIComponent(supplier.name + ' ' + (supplier.address || ''));
+                            window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination}`, '_blank');
                           }}
                           className="flex-1 bg-white border-2 border-[#1B5E20] text-[#1B5E20] text-base font-black py-4.5 rounded-[24px] hover:bg-green-50 transition-all active:scale-95 flex items-center justify-center gap-3"
                         >
-                          <MapPin size={20} />
+                          <Navigation size={20} />
                           Locate
                         </button>
                       </div>
