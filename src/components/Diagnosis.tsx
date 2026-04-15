@@ -1,8 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { ArrowLeft, Share2, Volume2, Droplets, Layers, Stethoscope, Store, Bot, CloudRain, CheckCircle, Clock, ChevronDown, Bug, Info, ShieldCheck, AlertTriangle, PhoneCall, MapPin, Calendar, Check } from 'lucide-react';
-import { motion } from 'motion/react';
+import { ArrowLeft, Share2, Volume2, Droplets, Layers, Stethoscope, Store, Bot, CloudRain, CheckCircle, Clock, ChevronDown, Bug, Info, ShieldCheck, AlertTriangle, PhoneCall, MapPin, Calendar, Check, FileDown, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { DiagnosisResult, generateSpeech } from '../services/gemini';
 import { Task, Language } from '../types';
+import { LiveAudioChat } from './LiveAudioChat';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface DiagnosisProps {
   result: DiagnosisResult | null;
@@ -10,16 +13,19 @@ interface DiagnosisProps {
   language: Language;
   onBack: () => void;
   onAskAI: () => void;
-  onFindSupplier: () => void;
+  onFindSupplier: (query?: string) => void;
   onSaveToCalendar: (task: Omit<Task, 'id' | 'completed'>) => void;
-  onToggleLanguage: () => void;
+  onToggleLanguage: (lang?: Language) => void;
 }
 
 export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language, onBack, onAskAI, onFindSupplier, onSaveToCalendar, onToggleLanguage }) => {
   const [savedTasks, setSavedTasks] = useState<Set<string>>(new Set());
   const [treatmentType, setTreatmentType] = useState<'organic' | 'chemical'>('organic');
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isLiveAudioOpen, setIsLiveAudioOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
 
   const t = {
     en: {
@@ -40,10 +46,13 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
       severeDesc: "This case requires professional intervention to prevent crop loss.",
       contactExpert: "Contact Local Expert",
       findSupplier: "Find Nearby Supplier",
-      askAI: "Ask AI Assistant",
+      askAI: "Deep Dive with AI",
       noDiagnosis: "No Diagnosis Yet",
       scanPrompt: "Scan a crop leaf to see results here.",
-      goBack: "Go Back"
+      goBack: "Go Back",
+      pestDetected: "Pest Detected",
+      cropHealth: "Crop Health",
+      exportPDF: "Export PDF"
     },
     hi: {
       title: "निदान परिणाम",
@@ -63,10 +72,13 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
       severeDesc: "फसल के नुकसान को रोकने के लिए इस मामले में पेशेवर हस्तक्षेप की आवश्यकता है।",
       contactExpert: "स्थानीय विशेषज्ञ से संपर्क करें",
       findSupplier: "आस-पास के आपूर्तिकर्ता खोजें",
-      askAI: "एआई सहायक से पूछें",
+      askAI: "एआई के साथ गहराई से जानें",
       noDiagnosis: "अभी तक कोई निदान नहीं",
       scanPrompt: "परिणाम देखने के लिए फसल की पत्ती को स्कैन करें।",
-      goBack: "वापस जाएं"
+      goBack: "वापस जाएं",
+      pestDetected: "कीट का पता चला",
+      cropHealth: "फसल स्वास्थ्य",
+      exportPDF: "PDF निर्यात करें"
     },
     kn: {
       title: "ರೋಗನಿರ್ಣಯದ ಫಲಿತಾಂಶ",
@@ -86,10 +98,13 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
       severeDesc: "ಬೆಳೆ ನಷ್ಟವನ್ನು ತಡೆಗಟ್ಟಲು ಈ ಸಂದರ್ಭದಲ್ಲಿ ವೃತ್ತಿಪರ ಹಸ್ತಕ್ಷೇಪದ ಅಗತ್ಯವಿದೆ.",
       contactExpert: "ಸ್ಥಾನಿಕ ತಜ್ಞರನ್ನು ಸಂಪರ್ಕಿಸಿ",
       findSupplier: "ಹತ್ತಿರದ ಸರಬರಾಜುದಾರರನ್ನು ಹುಡುಕಿ",
-      askAI: "AI ಸಹಾಯಕರನ್ನು ಕೇಳಿ",
+      askAI: "AI ನೊಂದಿಗೆ ಆಳವಾಗಿ ತಿಳಿಯಿರಿ",
       noDiagnosis: "ಇನ್ನೂ ಯಾವುದೇ ರೋಗನಿರ್ಣಯವಿಲ್ಲ",
       scanPrompt: "ಫಲಿತಾಂಶಗಳನ್ನು ನೋಡಲು ಬೆಳೆಯ ಎಲೆಯನ್ನು ಸ್ಕ್ಯಾನ್ ಮಾಡಿ.",
-      goBack: "ಹಿಂದಕ್ಕೆ ಹೋಗಿ"
+      goBack: "ಹಿಂದಕ್ಕೆ ಹೋಗಿ",
+      pestDetected: "ಕೀಟ ಪತ್ತೆಯಾಗಿದೆ",
+      cropHealth: "ಬೆಳೆ ಆರೋಗ್ಯ",
+      exportPDF: "PDF ರಫ್ತು ಮಾಡಿ"
     }
   }[language];
 
@@ -118,8 +133,8 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
 
   const handleSpeak = async () => {
     if (isSpeaking) {
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(console.error);
         audioContextRef.current = null;
       }
       setIsSpeaking(false);
@@ -167,8 +182,32 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
     }
   };
 
+  const handleExportPDF = async () => {
+    if (!reportRef.current) return;
+    setIsExporting(true);
+    try {
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`AgroCare_Diagnosis_${result.crop}_${result.disease}.pdf`);
+    } catch (error) {
+      console.error("PDF export failed:", error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-soil max-w-md mx-auto bg-white overflow-hidden relative">
+    <div className="flex flex-col min-h-[100dvh] bg-soil w-full bg-white overflow-hidden relative">
       <header className="bg-white px-4 py-3 border-b border-gray-100 flex items-center justify-between sticky top-0 z-20 pt-12">
         <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-100">
           <ArrowLeft size={24} className="text-gray-700" />
@@ -191,62 +230,64 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto pb-48 bg-[#f8f9fa]">
-        <div className="relative w-full h-72 bg-black overflow-hidden border-b-4 border-primary/20">
-          <img 
-            src={imageUrl || "https://picsum.photos/seed/leaf/600/400"} 
-            alt="Analyzed Leaf" 
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-          />
-          
-          {/* Scanning Grid Overlay */}
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,0,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,0,0.1)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none opacity-30"></div>
+      <main ref={reportRef} className="flex-1 overflow-y-auto pb-48 bg-[#f8f9fa]">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 lg:p-6">
+          <div className="space-y-6">
+            <div className="relative w-full h-72 lg:h-96 bg-black overflow-hidden border-b-4 border-primary/20 lg:rounded-2xl">
+              <img 
+                src={imageUrl || "https://picsum.photos/seed/leaf/600/400"} 
+                alt="Analyzed Leaf" 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+              
+              {/* Scanning Grid Overlay */}
+              <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,0,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,0,0.1)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none opacity-30"></div>
 
-          {/* Technical Corner Markers */}
-          <div className="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-primary/70"></div>
-          <div className="absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-primary/70"></div>
-          <div className="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-primary/70"></div>
-          <div className="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-primary/70"></div>
+              {/* Technical Corner Markers */}
+              <div className="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-primary/70"></div>
+              <div className="absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-primary/70"></div>
+              <div className="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-primary/70"></div>
+              <div className="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-primary/70"></div>
 
-          {/* Scan Metadata */}
-          <div className="absolute bottom-4 left-4 text-[10px] font-mono text-primary/80 uppercase tracking-widest">
-            <div>SCAN ID: {Math.random().toString(36).substring(2, 10).toUpperCase()}</div>
-            <div>RES: HIGH</div>
-            <div>MODE: SPECTRAL</div>
-          </div>
+              {/* Scan Metadata */}
+              <div className="absolute bottom-4 left-4 text-[10px] font-mono text-primary/80 uppercase tracking-widest">
+                <div>SCAN ID: {Math.random().toString(36).substring(2, 10).toUpperCase()}</div>
+                <div>RES: HIGH</div>
+                <div>MODE: SPECTRAL</div>
+              </div>
 
-          {result.boundingBox && result.boundingBox.length === 4 && (
-            <div 
-              className="absolute border-2 border-red-500 bg-red-500/10 pointer-events-none flex justify-center backdrop-blur-[1px]"
-              style={{
-                top: `${(result.boundingBox[0] / 1000) * 100}%`,
-                left: `${(result.boundingBox[1] / 1000) * 100}%`,
-                height: `${((result.boundingBox[2] - result.boundingBox[0]) / 1000) * 100}%`,
-                width: `${((result.boundingBox[3] - result.boundingBox[1]) / 1000) * 100}%`,
-                boxShadow: '0 0 20px rgba(239, 68, 68, 0.4), inset 0 0 20px rgba(239, 68, 68, 0.2)',
-              }}
-            >
-              {/* Target Crosshairs */}
-              <div className="absolute -top-2 -left-2 w-3 h-3 border-t-2 border-l-2 border-red-500"></div>
-              <div className="absolute -top-2 -right-2 w-3 h-3 border-t-2 border-r-2 border-red-500"></div>
-              <div className="absolute -bottom-2 -left-2 w-3 h-3 border-b-2 border-l-2 border-red-500"></div>
-              <div className="absolute -bottom-2 -right-2 w-3 h-3 border-b-2 border-r-2 border-red-500"></div>
+              {result.boundingBox && result.boundingBox.length === 4 && (
+                <div 
+                  className="absolute border-2 border-red-500 bg-red-500/10 pointer-events-none flex justify-center backdrop-blur-[1px]"
+                  style={{
+                    top: `${(result.boundingBox[0] / 1000) * 100}%`,
+                    left: `${(result.boundingBox[1] / 1000) * 100}%`,
+                    height: `${((result.boundingBox[2] - result.boundingBox[0]) / 1000) * 100}%`,
+                    width: `${((result.boundingBox[3] - result.boundingBox[1]) / 1000) * 100}%`,
+                    boxShadow: '0 0 20px rgba(239, 68, 68, 0.4), inset 0 0 20px rgba(239, 68, 68, 0.2)',
+                  }}
+                >
+                  {/* Target Crosshairs */}
+                  <div className="absolute -top-2 -left-2 w-3 h-3 border-t-2 border-l-2 border-red-500"></div>
+                  <div className="absolute -top-2 -right-2 w-3 h-3 border-t-2 border-r-2 border-red-500"></div>
+                  <div className="absolute -bottom-2 -left-2 w-3 h-3 border-b-2 border-l-2 border-red-500"></div>
+                  <div className="absolute -bottom-2 -right-2 w-3 h-3 border-b-2 border-r-2 border-red-500"></div>
 
-              <div className="absolute -top-8 bg-red-600 text-white text-[10px] font-mono font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap flex items-center gap-1 tracking-wider uppercase border border-red-400">
-                <AlertTriangle size={10} />
-                TARGET AQUIRED: {language === 'hi' ? result.diseaseHi : language === 'kn' ? result.diseaseKn : result.disease}
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-l-transparent border-r-transparent border-t-red-600"></div>
+                  <div className="absolute -top-8 bg-red-600 text-white text-[10px] font-mono font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap flex items-center gap-1 tracking-wider uppercase border border-red-400">
+                    <AlertTriangle size={10} />
+                    {t.pestDetected}: {language === 'hi' ? result.diseaseHi : language === 'kn' ? result.diseaseKn : result.disease}
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-r-[4px] border-t-[4px] border-l-transparent border-r-transparent border-t-red-600"></div>
+                  </div>
+                </div>
+              )}
+
+              <div className={`absolute top-4 right-4 px-3 py-1 rounded-sm text-[10px] font-mono font-bold border uppercase tracking-widest backdrop-blur-md ${severityColor.replace('bg-', 'bg-').replace('100', '900/80').replace('text-', 'text-').replace('700', '100')}`}>
+                {result.severity} {t.severity}
               </div>
             </div>
-          )}
 
-          <div className={`absolute top-4 right-4 px-3 py-1 rounded-sm text-[10px] font-mono font-bold border uppercase tracking-widest backdrop-blur-md ${severityColor.replace('bg-', 'bg-').replace('100', '900/80').replace('text-', 'text-').replace('700', '100')}`}>
-            {result.severity} {t.severity}
-          </div>
-        </div>
-
-        <div className="px-5 pt-6 pb-6 bg-white border-b border-gray-200 shadow-sm relative z-10 -mt-2 rounded-t-2xl">
+            <div className="px-5 pt-6 pb-6 bg-white border-b border-gray-200 shadow-sm relative z-10 -mt-2 lg:mt-0 rounded-t-2xl lg:rounded-2xl">
           <div className="flex items-start justify-between">
             <div className="flex-1 pr-4">
               <div className="flex items-center gap-2 mb-1">
@@ -263,6 +304,23 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
               className={`p-3 rounded-xl transition-all shadow-sm border ${isSpeaking ? 'bg-blue-600 text-white border-blue-700 animate-pulse' : 'bg-white text-blue-600 border-gray-200 hover:bg-blue-50'}`}
             >
               <Volume2 size={20} />
+            </button>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button 
+              onClick={() => setIsLiveAudioOpen(true)}
+              className="flex-1 bg-blue-50 text-blue-700 border border-blue-200 font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-100 transition shadow-sm"
+            >
+              <Bot size={18} />
+              Talk to AI
+            </button>
+            <button 
+              onClick={handleExportPDF}
+              disabled={isExporting}
+              className="flex-1 bg-white text-gray-700 border border-gray-200 font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+            >
+              {isExporting ? <Loader2 className="animate-spin" size={18} /> : <FileDown size={18} className="text-primary" />}
+              {t.exportPDF}
             </button>
           </div>
           <div className="mt-5 p-4 bg-green-50 rounded-xl border border-green-100 font-roboto text-sm text-green-900 leading-relaxed shadow-inner">
@@ -301,7 +359,8 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
           </div>
         </div>
 
-        <div className="h-2 bg-gray-50 border-t border-b border-gray-100"></div>
+          </div>
+          <div className="space-y-6">
 
         {/* Prevention Tips Section */}
         <div className="px-5 py-6">
@@ -494,11 +553,13 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
             </div>
           </div>
         )}
+          </div>
+        </div>
       </main>
 
       <div className="absolute bottom-0 left-0 w-full bg-white border-t border-gray-200 p-4 pb-12 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-30 flex flex-col gap-3">
         <button 
-          onClick={onFindSupplier}
+          onClick={() => onFindSupplier(result.treatment[treatmentType].name)}
           className="w-full bg-primary-dark hover:bg-primary text-white font-semibold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-colors"
         >
           <Store size={20} />
@@ -512,6 +573,16 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
           {t.askAI}
         </button>
       </div>
+
+      {/* Live Audio Chat Modal */}
+      <AnimatePresence>
+        {isLiveAudioOpen && (
+          <LiveAudioChat 
+            diagnosis={result} 
+            onClose={() => setIsLiveAudioOpen(false)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

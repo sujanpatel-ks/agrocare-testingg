@@ -2,6 +2,7 @@ import React from 'react';
 import { Sprout, TrendingUp, MessageSquare, User, Scan } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Screen, Language } from '../types';
+import { useTranslation } from 'react-i18next';
 
 interface BottomNavProps {
   activeScreen: Screen;
@@ -10,31 +11,27 @@ interface BottomNavProps {
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeScreen, onScreenChange, language }) => {
-  const labels = {
-    en: { home: 'Home', market: 'Market', scan: 'Scan', chat: 'Chat', profile: 'Profile' },
-    hi: { home: 'होम', market: 'बाजार', scan: 'स्कैन', chat: 'चैट', profile: 'प्रोफ़ाइल' },
-    kn: { home: 'ಮನೆ', market: 'ಮಾರುಕಟ್ಟೆ', scan: 'ಸ್ಕ್ಯಾನ್', chat: 'ಚಾಟ್', profile: 'ಪ್ರೊಫೈಲ್' }
-  }[language];
+  const { t } = useTranslation();
 
   const navItems = [
-    { id: 'home', label: labels.home, icon: Sprout },
-    { id: 'market', label: labels.market, icon: TrendingUp },
-    { id: 'scan', label: labels.scan, icon: Scan, isCenter: true },
-    { id: 'chat', label: labels.chat, icon: MessageSquare },
-    { id: 'profile', label: labels.profile, icon: User },
+    { id: 'home', label: t('nav.home'), icon: Sprout },
+    { id: 'market', label: t('nav.market'), icon: TrendingUp },
+    { id: 'scan', label: t('nav.scan'), icon: Scan, isCenter: true },
+    { id: 'chat', label: t('nav.chat'), icon: MessageSquare },
+    { id: 'profile', label: t('nav.profile'), icon: User },
   ];
 
   return (
-    <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50 pointer-events-none">
-      <div className="bg-white/90 backdrop-blur-xl border-t border-gray-100 px-6 pb-8 pt-4 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] rounded-t-[32px] pointer-events-auto relative">
-        <div className="flex justify-between items-center relative z-10">
+    <div className="fixed bottom-0 left-0 w-full z-50 pointer-events-none md:top-0 md:bottom-auto md:w-24 md:h-screen">
+      <div className="bg-white/90 backdrop-blur-xl border-t border-gray-100 px-6 pb-8 pt-4 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] rounded-t-[32px] pointer-events-auto relative md:h-full md:rounded-none md:border-t-0 md:border-r md:px-4 md:py-8 md:flex md:flex-col md:shadow-[10px_0_40px_rgba(0,0,0,0.08)]">
+        <div className="flex justify-between items-center relative z-10 md:flex-col md:h-full md:justify-start md:gap-12">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeScreen === item.id;
 
             if (item.isCenter) {
               return (
-                <div key={item.id} className="relative flex flex-col items-center justify-center -mt-12">
+                <div key={item.id} className="relative flex flex-col items-center justify-center -mt-12 md:mt-0 md:mb-8">
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -43,7 +40,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeScreen, onScreenChan
                   >
                     <Icon size={28} strokeWidth={2.5} />
                   </motion.button>
-                  <span className="text-[10px] font-bold text-primary mt-1.5">{item.label}</span>
+                  <span className="text-[10px] font-bold text-primary mt-1.5 hidden md:block">{item.label}</span>
                 </div>
               );
             }

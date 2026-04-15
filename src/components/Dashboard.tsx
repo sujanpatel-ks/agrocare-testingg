@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Bell, MapPin, Camera, Upload, Calendar as CalendarIcon, Store, X, Sprout, Users, TrendingUp, Beaker, Landmark, CloudRain, Sun, Wind } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FileUploader } from './FileUploader';
+import { LanguageSelector } from './LanguageSelector';
 import { Language } from '../types';
 import { useGeolocation } from '../hooks/useGeolocation';
+import { useTranslation } from 'react-i18next';
 
 interface DashboardProps {
   onNavigate: (screen: any) => void;
   onFileSelect: (file: File) => void;
   onAddTask?: (task: any) => void;
   language: Language;
-  onToggleLanguage: () => void;
+  onToggleLanguage: (lang?: Language) => void;
   onCameraOpen: () => void;
 }
 
@@ -19,6 +21,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onFileSelect, 
   const { latitude, longitude, loading: locationLoading, error: locationError } = useGeolocation();
   const [locationName, setLocationName] = useState<string | null>(null);
   const [weatherData, setWeatherData] = useState<{ temp: number, condition: string, icon: any } | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (latitude && longitude) {
@@ -51,45 +54,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onFileSelect, 
     }
   }, [latitude, longitude]);
 
-  const t = {
-    en: {
-      scan: "Scan Crop",
-      scanDesc: "Open AI Camera",
-      upload: "Upload from Gallery",
-      calendar: "My Calendar",
-      suppliers: "Suppliers",
-      community: "Community",
-      market: "Market Prices",
-      soil: "Soil Test",
-      schemes: "Govt Schemes",
-      location: "Unknown Location",
-    },
-    hi: {
-      scan: "फसल स्कैन करें",
-      scanDesc: "एआई कैमरा खोलें",
-      upload: "गैलरी से अपलोड करें",
-      calendar: "मेरा कैलेंडर",
-      suppliers: "आपूर्तिकर्ता",
-      community: "समुदाय",
-      market: "बाजार भाव",
-      soil: "मिट्टी परीक्षण",
-      schemes: "सरकारी योजनाएं",
-      location: "अज्ञात स्थान",
-    },
-    kn: {
-      scan: "ಬೆಳೆ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ",
-      scanDesc: "ಎಐ ಕ್ಯಾಮೆರಾ ತೆರೆಯಿರಿ",
-      upload: "ಗ್ಯಾಲರಿಯಿಂದ ಅಪ್‌ಲೋಡ್ ಮಾಡಿ",
-      calendar: "ನನ್ನ ಕ್ಯಾಲೆಂಡರ್",
-      suppliers: "ಸರಬರಾಜುದಾರರು",
-      community: "ಸಮುದಾಯ",
-      market: "ಮಾರುಕಟ್ಟೆ ಬೆಲೆಗಳು",
-      soil: "ಮಣ್ಣು ಪರೀಕ್ಷೆ",
-      schemes: "ಸರ್ಕಾರಿ ಯೋಜನೆಗಳು",
-      location: "ಅಜ್ಞಾತ ಸ್ಥಳ",
-    }
-  }[language];
-
   return (
     <div className="flex flex-col min-h-[100dvh] bg-[#F8F9FA] pb-24">
       {/* Header Section */}
@@ -105,11 +69,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onFileSelect, 
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex bg-black/20 rounded-full p-1 border border-white/10">
-              <button onClick={() => language !== 'en' && onToggleLanguage()} className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${language === 'en' ? 'bg-white text-primary-dark' : 'text-white'}`}>EN</button>
-              <button onClick={() => language !== 'hi' && onToggleLanguage()} className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${language === 'hi' ? 'bg-white text-primary-dark' : 'text-white'}`}>HI</button>
-              <button onClick={() => language !== 'kn' && onToggleLanguage()} className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${language === 'kn' ? 'bg-white text-primary-dark' : 'text-white'}`}>KN</button>
-            </div>
             <button className="relative">
               <Bell size={24} />
               <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-primary-dark"></span>
@@ -121,7 +80,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onFileSelect, 
           <div className="flex items-center gap-2 text-green-100">
             <MapPin size={16} />
             <span className="text-sm font-bold">
-              {locationLoading ? 'Locating...' : locationError ? 'Location Error' : locationName || t.location}
+              {locationLoading ? 'Locating...' : locationError ? 'Location Error' : locationName || t('dashboard.location')}
             </span>
           </div>
           
@@ -137,12 +96,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onFileSelect, 
 
       {/* Main Content */}
       <main className="px-6 -mt-16 space-y-6 relative z-10">
-        {/* Scan Card */}
-        <div className="bg-white p-2 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
-          <div className="bg-[#2E7D32] rounded-[24px] p-6 flex justify-between items-center text-white">
+        {/* Crop Health Status */}
+        <div className="bg-white p-5 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center text-green-600">
+              <Sprout size={24} />
+            </div>
             <div>
-              <h2 className="text-3xl font-black mb-1">{t.scan}</h2>
-              <p className="text-sm font-bold text-green-100">{t.scanDesc}</p>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{t('agro.cropHealth')}</p>
+              <h3 className="text-lg font-black text-earth">Good</h3>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span className="text-xs font-bold text-green-600 uppercase">Optimal</span>
+          </div>
+        </div>
+
+        {/* Scan Card */}
+        <div className="bg-white p-3 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-100">
+          <div className="bg-gradient-to-br from-[#1B5E20] to-[#2E7D32] rounded-[24px] p-6 flex justify-between items-center text-white shadow-inner">
+            <div>
+              <h2 className="text-3xl font-black mb-1">{t('dashboard.scan')}</h2>
+              <p className="text-sm font-bold text-green-100">{t('dashboard.scanDesc')}</p>
             </div>
             <button onClick={onCameraOpen} className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-[#2E7D32] shadow-inner active:scale-95 transition-transform">
               <Camera size={32} strokeWidth={2.5} />
@@ -150,52 +126,52 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onFileSelect, 
           </div>
           <button onClick={() => setShowUploader(true)} className="w-full py-4 mt-2 flex items-center justify-center gap-2 text-[#455A64] font-bold active:bg-gray-50 rounded-2xl transition-colors">
             <Upload size={20} />
-            {t.upload}
+            {t('dashboard.upload')}
           </button>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-4">
-          <button onClick={() => onNavigate('calendar')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <button onClick={() => onNavigate('calendar')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
             <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500">
               <CalendarIcon size={32} strokeWidth={2.5} />
             </div>
-            <span className="font-bold text-[#455A64]">{t.calendar}</span>
+            <span className="font-bold text-[#455A64]">{t('nav.calendar')}</span>
           </button>
-          <button onClick={() => onNavigate('suppliers')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform">
+          <button onClick={() => onNavigate('suppliers')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
             <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500">
               <Store size={32} strokeWidth={2.5} />
             </div>
-            <span className="font-bold text-[#455A64]">{t.suppliers}</span>
+            <span className="font-bold text-[#455A64]">{t('nav.suppliers')}</span>
           </button>
-          <button onClick={() => onNavigate('community')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform">
+          <button onClick={() => onNavigate('community')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
             <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-500">
               <Users size={32} strokeWidth={2.5} />
             </div>
-            <span className="font-bold text-[#455A64]">{t.community}</span>
+            <span className="font-bold text-[#455A64]">{t('nav.community')}</span>
           </button>
-          <button onClick={() => onNavigate('market')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform">
+          <button onClick={() => onNavigate('market')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
             <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center text-green-500">
               <TrendingUp size={32} strokeWidth={2.5} />
             </div>
-            <span className="font-bold text-[#455A64]">{t.market}</span>
+            <span className="font-bold text-[#455A64]">{t('nav.market')}</span>
           </button>
-          <button onClick={() => onNavigate('soil-analysis')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform">
+          <button onClick={() => onNavigate('soil-analysis')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
             <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600">
               <Beaker size={32} strokeWidth={2.5} />
             </div>
-            <span className="font-bold text-[#455A64]">{t.soil}</span>
+            <span className="font-bold text-[#455A64]">{t('nav.soil')}</span>
           </button>
-          <button onClick={() => onNavigate('scheme-finder')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform">
+          <button onClick={() => onNavigate('scheme-finder')} className="bg-white p-6 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-gray-100 flex flex-col items-center justify-center gap-4 active:scale-95 transition-transform hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
             <div className="w-16 h-16 bg-teal-50 rounded-2xl flex items-center justify-center text-teal-600">
               <Landmark size={32} strokeWidth={2.5} />
             </div>
-            <span className="font-bold text-[#455A64]">{t.schemes}</span>
+            <span className="font-bold text-[#455A64]">{t('nav.schemes')}</span>
           </button>
         </div>
 
         {/* Quick Chat Input */}
-        <div className="bg-white p-4 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 relative overflow-hidden">
+        <div className="bg-white p-5 rounded-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-gray-200 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-green-50 rounded-full -mr-16 -mt-16 blur-2xl opacity-60 pointer-events-none"></div>
           <div className="flex items-center gap-3 mb-3 relative z-10">
             <div className="w-10 h-10 bg-[#E8F5E9] rounded-full flex items-center justify-center text-[#2E7D32]">

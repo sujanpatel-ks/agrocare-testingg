@@ -1,0 +1,19 @@
+{
+  "nav": {
+    "home": "होम",
+    "market": "बाज़ार",
+    "community": "समुदाय",
+    "calendar": "कैलेंडर",
+    "profile": "प्रोफ़ाइल"
+  },
+  "dashboard": {
+    "title": "डैशबोर्ड",
+    "scan": "स्कैन",
+    "soil": "मिट्टी विश्लेषण"
+  },
+  "agro": {
+    "cropHealth": "फसल स्वास्थ्य",
+    "pestDetected": "कीट का पता चला",
+    "marketPrice": "बाजार मूल्य"
+  }
+}

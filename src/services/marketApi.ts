@@ -1,5 +1,6 @@
 import { CropPrice } from '../types';
 import { CROP_PRICES } from '../constants';
+import localMarketData from '../data/market_data.json';
 
 const API_KEY = (import.meta as any).env.VITE_DATA_GOV_IN_API_KEY || '579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b';
 const BASE_URL = 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070';
@@ -17,16 +18,43 @@ const getIconForCommodity = (commodity: string) => {
   if (lower.includes('corn') || lower.includes('maize')) return '🌽';
   if (lower.includes('carrot')) return '🥕';
   if (lower.includes('chilli')) return '🌶️';
+  if (lower.includes('brinjal')) return '🍆';
+  if (lower.includes('peas')) return '🫛';
+  if (lower.includes('garlic')) return '🧄';
+  if (lower.includes('cabbage')) return '🥬';
   return '🌱';
 };
 
 const getCategoryForCommodity = (commodity: string): 'Grains' | 'Vegetables' | 'Oilseeds' | 'Fruits' => {
   const lower = commodity.toLowerCase();
   if (lower.includes('wheat') || lower.includes('rice') || lower.includes('paddy') || lower.includes('corn') || lower.includes('maize')) return 'Grains';
-  if (lower.includes('tomato') || lower.includes('onion') || lower.includes('potato') || lower.includes('carrot') || lower.includes('chilli') || lower.includes('gourd')) return 'Vegetables';
+  if (lower.includes('tomato') || lower.includes('onion') || lower.includes('potato') || lower.includes('carrot') || lower.includes('chilli') || lower.includes('gourd') || lower.includes('brinjal') || lower.includes('peas') || lower.includes('cabbage') || lower.includes('garlic')) return 'Vegetables';
   if (lower.includes('apple') || lower.includes('mango') || lower.includes('pineapple') || lower.includes('banana')) return 'Fruits';
   if (lower.includes('soybean') || lower.includes('mustard') || lower.includes('groundnut')) return 'Oilseeds';
   return 'Vegetables'; // Default fallback
+};
+
+const formatRecordsToCropPrices = (records: any[]): CropPrice[] => {
+  return records.map((record: any, index: number) => {
+    const pricePerQuintal = record.modal_price;
+    // Generate a random trend for UI purposes since API only gives current price
+    const randomChange = (Math.random() * 100 - 50); 
+    const trend = randomChange > 0 ? 'up' : randomChange < 0 ? 'down' : 'neutral';
+    
+    return {
+      id: `mandi-${record.market}-${index}`,
+      name: record.commodity,
+      nameHi: record.commodity, // API doesn't provide Hindi names
+      nameKn: record.commodity, // API doesn't provide Kannada names
+      price: pricePerQuintal,
+      change: parseFloat(randomChange.toFixed(2)),
+      changePercent: parseFloat((Math.abs(randomChange) / pricePerQuintal * 100).toFixed(2)),
+      trend: trend,
+      icon: getIconForCommodity(record.commodity),
+      mandi: `${record.market}, ${record.district} (${record.state})`,
+      category: getCategoryForCommodity(record.commodity),
+    };
+  });
 };
 
 export async function fetchKarnatakaMarketPrices(): Promise<CropPrice[]> {
@@ -49,34 +77,18 @@ export async function fetchKarnatakaMarketPrices(): Promise<CropPrice[]> {
       records = fallbackData.records || [];
     }
     
-    // If API is completely empty or fails, use fallback mock data
+    // If API is completely empty or fails, use the newly added local market data
     if (records.length === 0) {
-      return CROP_PRICES;
+      return formatRecordsToCropPrices(localMarketData.records);
     }
     
-    return records.map((record: any, index: number) => {
-      const pricePerQuintal = record.modal_price;
-      // Generate a random trend for UI purposes since API only gives current price
-      const randomChange = (Math.random() * 100 - 50); 
-      const trend = randomChange > 0 ? 'up' : randomChange < 0 ? 'down' : 'neutral';
-      
-      return {
-        id: `mandi-${record.market}-${index}`,
-        name: record.commodity,
-        nameHi: record.commodity, // API doesn't provide Hindi names
-        nameKn: record.commodity, // API doesn't provide Kannada names
-        price: pricePerQuintal,
-        change: parseFloat(randomChange.toFixed(2)),
-        changePercent: parseFloat((Math.abs(randomChange) / pricePerQuintal * 100).toFixed(2)),
-        trend: trend,
-        icon: getIconForCommodity(record.commodity),
-        mandi: `${record.market}, ${record.district} (${record.state})`,
-        category: getCategoryForCommodity(record.commodity),
-      };
-    });
+    return formatRecordsToCropPrices(records);
   } catch (error) {
-    console.error('Error fetching market prices:', error);
-    // Fallback to mock data on error
+    console.error('Error fetching market prices, falling back to local dataset:', error);
+    // Fallback to local JSON data on error
+    if (localMarketData && localMarketData.records) {
+      return formatRecordsToCropPrices(localMarketData.records);
+    }
     return CROP_PRICES;
   }
 }

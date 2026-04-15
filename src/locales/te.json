@@ -1,0 +1,19 @@
+{
+  "nav": {
+    "home": "హోమ్",
+    "market": "మార్కెట్",
+    "community": "కమ్యూనిటీ",
+    "calendar": "క్యాలెండర్",
+    "profile": "ప్రొఫైల్"
+  },
+  "dashboard": {
+    "title": "డాష్‌బోర్డ్",
+    "scan": "స్కాన్",
+    "soil": "నేల విశ్లేషణ"
+  },
+  "agro": {
+    "cropHealth": "పంట ఆరోగ్యం",
+    "pestDetected": "తెగులు గుర్తించబడింది",
+    "marketPrice": "మార్కెట్ ధర"
+  }
+}

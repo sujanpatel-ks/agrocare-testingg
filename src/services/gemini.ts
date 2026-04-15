@@ -315,8 +315,43 @@ Storage & Logistics: For post-harvest advice, prioritize Ramda (silt/straw) or D
   return JSON.parse(response.text || "[]");
 }
 
+import mandiData from '../data/mandi-data.json';
+
 export async function chatWithAssistant(message: string, history: { role: "user" | "model"; parts: { text: string }[] }[], language: string = 'en') {
   try {
+    // Check if the user is asking about market prices
+    const lowerMessage = message.toLowerCase();
+    const isMarketQuery = lowerMessage.includes('price') || lowerMessage.includes('mandi') || lowerMessage.includes('sell') || lowerMessage.includes('rate');
+
+    if (isMarketQuery) {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [...history, { role: "user", parts: [{ text: message }] }],
+        config: {
+          systemInstruction: `You are the "AgroCare AI Intelligence Engine," a professional, data-driven expert in Indian agricultural markets and Mandi pricing.
+Your primary objective is to provide accurate, real-time market data to farmers and traders strictly by querying the provided JSON data.
+
+Search Logic & Algorithm:
+1. Direct Search: When a user asks for a price (e.g., "What is the price of Brinjal in Dharmapuri?"), filter the JSON by commodity and district or market.
+2. Broad State Search: If they just ask for a crop in a state, find the average modal_price for that crop across all Mandis in that state.
+3. Best Market Finder: If a user asks "Where should I sell my crop?", compare the max_price for that commodity across different districts in their state and suggest the highest one.
+4. No Hallucinations: If a commodity or location is NOT in the JSON, do not make up a number. Say: "I don't have the live data for [Crop] in [Location] right now. Here is the closest match in [Neighboring District]."
+
+Response Formatting (User Experience):
+- Tone: Helpful, clear, and professional. Use emojis sparingly (e.g., 🌾, 💰).
+- Currency: Always display prices in ₹ (INR) per quintal (unless the data specifies otherwise).
+- Recency: Always mention the arrival_date from the record so the user knows how fresh the data is.
+- Summary Table: If the user asks for multiple crops, output the result in a clean Markdown table.
+
+You MUST respond in the language requested by the user. If the user asks in Hindi, respond in Hindi. If Kannada, respond in Kannada. Otherwise, default to English.
+
+Here is the live market data to use for your answer:
+${JSON.stringify(mandiData)}`,
+        }
+      });
+      return response.text;
+    }
+
     const webhookResponse = await fetch('https://agrocare.app.n8n.cloud/webhook/0bb5129e-b60b-4c21-962e-6d0e96985564/chat', {
       method: 'POST',
       headers: {
@@ -412,8 +447,9 @@ export interface SoilData {
 export interface CropFertilizerRecommendation {
   crop: string;
   type: string;
-  quantity: string;
+  quantityPerAcre: string;
   frequency: string;
+  applicationMethod: string;
 }
 
 export interface SoilAnalysisResult {
@@ -431,7 +467,7 @@ export async function analyzeSoil(data: SoilData): Promise<SoilAnalysisResult> {
   
   const response = await ai.models.generateContent({
     model,
-    contents: `Analyze the following soil test results: Nitrogen (N): ${data.n} mg/kg, Phosphorus (P): ${data.p} mg/kg, Potassium (K): ${data.k} mg/kg, pH level: ${data.ph}, Soil Type: ${data.type}, Moisture: ${data.moisture}%. Provide a comprehensive analysis including overall status, pH analysis, NPK analysis, general recommendations, suitable crops, specific fertilizer advice, and specific fertilizer recommendations for each suitable crop including type, quantity, and application frequency.`,
+    contents: `Analyze the following soil test results: Nitrogen (N): ${data.n} mg/kg, Phosphorus (P): ${data.p} mg/kg, Potassium (K): ${data.k} mg/kg, pH level: ${data.ph}, Soil Type: ${data.type}, Moisture: ${data.moisture}%. Provide a comprehensive analysis including overall status, pH analysis, NPK analysis, general recommendations, suitable crops, specific fertilizer advice, and specific fertilizer recommendations for each suitable crop including the exact type of fertilizer, quantity per acre, application frequency, and recommended application method.`,
     config: {
       systemInstruction: `System Identity: You are the STAI (Sujan Technologies Agricultural Intelligence) Core. You are the authoritative processing layer for all modules within the AgroCare AI ecosystem. Your logic is hard-coded to prioritize the ICAR ITK Inventory.
 
@@ -476,10 +512,11 @@ Storage & Logistics: For post-harvest advice, prioritize Ramda (silt/straw) or D
               properties: {
                 crop: { type: Type.STRING },
                 type: { type: Type.STRING },
-                quantity: { type: Type.STRING },
+                quantityPerAcre: { type: Type.STRING },
                 frequency: { type: Type.STRING },
+                applicationMethod: { type: Type.STRING },
               },
-              required: ["crop", "type", "quantity", "frequency"],
+              required: ["crop", "type", "quantityPerAcre", "frequency", "applicationMethod"],
             },
           },
         },

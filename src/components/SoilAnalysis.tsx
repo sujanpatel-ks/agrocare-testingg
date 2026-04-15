@@ -50,7 +50,7 @@ export const SoilAnalysis: React.FC<SoilAnalysisProps> = ({ onBack, language }) 
   };
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-gray-50 max-w-md mx-auto overflow-x-hidden shadow-2xl">
+    <div className="flex flex-col min-h-[100dvh] bg-gray-50 w-full overflow-x-hidden shadow-2xl">
       {/* Header */}
       <header className="flex items-center px-5 pt-12 pb-4 bg-white sticky top-0 z-20 shadow-sm">
         <button onClick={onBack} className="bg-[#E8F5E9] p-2.5 rounded-2xl text-[#1B5E20] shadow-sm mr-4">
@@ -62,7 +62,8 @@ export const SoilAnalysis: React.FC<SoilAnalysisProps> = ({ onBack, language }) 
         </div>
       </header>
 
-      <main className="flex-1 p-5 overflow-y-auto pb-24">
+      <main className="flex-1 p-5 overflow-y-auto pb-24 lg:p-8">
+        <div className="max-w-7xl mx-auto">
         <AnimatePresence mode="wait">
           {!result ? (
             <motion.div
@@ -70,8 +71,9 @@ export const SoilAnalysis: React.FC<SoilAnalysisProps> = ({ onBack, language }) 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
+              className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10"
             >
+              <div className="space-y-6">
               <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100">
                 <h2 className="text-lg font-black text-earth mb-4 flex items-center gap-2">
                   <Beaker className="text-[#1B5E20]" size={20} />
@@ -193,14 +195,16 @@ export const SoilAnalysis: React.FC<SoilAnalysisProps> = ({ onBack, language }) 
                   Enter the values from your latest soil test report. If you don't have exact numbers, you can estimate or use a basic home testing kit.
                 </p>
               </div>
+              </div>
             </motion.div>
           ) : (
             <motion.div
               key="result"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="space-y-4"
+              className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10"
             >
+              <div className="space-y-4">
               {/* Overall Status */}
               <div className={`p-6 rounded-[32px] border-2 ${getStatusColor(result.status)}`}>
                 <div className="flex justify-between items-start mb-2">
@@ -240,6 +244,8 @@ export const SoilAnalysis: React.FC<SoilAnalysisProps> = ({ onBack, language }) 
                   <p className="text-earth font-medium text-sm leading-relaxed">{result.fertilizerAdvice}</p>
                 </div>
               </div>
+              </div>
+              <div className="space-y-4">
 
               {/* Recommendations */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
@@ -289,13 +295,17 @@ export const SoilAnalysis: React.FC<SoilAnalysisProps> = ({ onBack, language }) 
                           </div>
                           <div className="grid grid-cols-2 gap-3 mt-1">
                             <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
-                              <span className="block text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">Quantity</span>
-                              <span className="block text-blue-900 font-black text-base leading-tight">{rec.quantity}</span>
+                              <span className="block text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">Qty / Acre</span>
+                              <span className="block text-blue-900 font-black text-base leading-tight">{rec.quantityPerAcre}</span>
                             </div>
                             <div className="bg-green-50 p-3 rounded-xl border border-green-100">
                               <span className="block text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">Frequency</span>
                               <span className="block text-green-900 font-black text-base leading-tight">{rec.frequency}</span>
                             </div>
+                          </div>
+                          <div className="flex items-start gap-2 mt-1">
+                            <span className="font-bold text-gray-500 min-w-[80px]">Method:</span>
+                            <span className="text-earth font-medium">{rec.applicationMethod}</span>
                           </div>
                         </div>
                       </div>
@@ -310,9 +320,11 @@ export const SoilAnalysis: React.FC<SoilAnalysisProps> = ({ onBack, language }) 
               >
                 Test Another Sample
               </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
       </main>
     </div>
   );

@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, User, Settings, Bell, Shield, HelpCircle, LogOut, ChevronRight, MapPin, Edit3, Globe, Save, X, Camera, MessageSquare, Award, Star, Phone, Droplets, Sprout } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Language } from '../types';
+import { useAuth } from '../AuthProvider';
 
 interface ProfileProps {
   onBack: () => void;
   language: Language;
-  onToggleLanguage: () => void;
+  onToggleLanguage: (lang?: Language) => void;
 }
 
 const INITIAL_DATA = {
@@ -20,6 +21,7 @@ const INITIAL_DATA = {
 };
 
 export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLanguage }) => {
+  const { signOut } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [savedData, setSavedData] = useState(INITIAL_DATA);
   const [formData, setFormData] = useState(INITIAL_DATA);
@@ -137,15 +139,37 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
       upgradeDesc: 'ಸುಧಾರಿತ ಹವಾಮಾನ ಮುನ್ಸೂಚನೆಗಳು ಮತ್ತು ಅನಿಯಮಿತ AI ಸ್ಕ್ಯಾನ್‌ಗಳನ್ನು ಪಡೆಯಿರಿ.',
       upgradeBtn: 'ಅಪ್‌ಗ್ರೇಡ್ ಮಾಡಿ'
     }
-  }[language];
+  }[language] || {
+    profile: 'Profile',
+    editProfile: 'Edit Profile',
+    farmDetails: 'Farm Details',
+    location: 'Location',
+    phone: 'Phone Number',
+    farmSize: 'Farm Size',
+    primaryCrops: 'Primary Crops',
+    soilType: 'Soil Type',
+    irrigation: 'Irrigation',
+    settings: 'Settings',
+    language: 'Language',
+    notifications: 'Notifications',
+    privacy: 'Privacy & Security',
+    help: 'Help & Support',
+    logout: 'Log Out',
+    save: 'Save Changes',
+    cancel: 'Cancel',
+    currentLang: 'English',
+    upgradeTitle: 'AgroCare Premium',
+    upgradeDesc: 'Get advanced weather forecasts and unlimited AI scans.',
+    upgradeBtn: 'Upgrade'
+  };
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-[#F8F9FA] max-w-md mx-auto relative">
+    <div className="flex flex-col min-h-[100dvh] bg-[#F8F9FA] w-full relative">
       {/* 
         Header Section
         Using shrink-0 and compact padding to prevent overlap with the main content.
       */}
-      <header className="bg-primary-dark text-white px-5 pt-6 pb-5 rounded-b-[24px] shadow-lg z-10 relative overflow-hidden shrink-0">
+      <header className="bg-primary-dark text-white px-5 pt-6 pb-5 rounded-b-[24px] shadow-lg z-10 relative overflow-hidden shrink-0 lg:rounded-none lg:px-10">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
         <div className="absolute bottom-0 left-0 w-24 h-24 bg-primary/20 rounded-full -ml-12 -mb-12 blur-2xl"></div>
         
@@ -234,8 +258,10 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
         Main Content Section
         Reduced padding and spacing to make better use of whitespace and prevent overlap.
       */}
-      <main className="flex-1 overflow-y-auto overscroll-contain pb-24 px-4 pt-4 space-y-4" style={{ WebkitOverflowScrolling: 'touch' }}>
-        {/* Stats Section */}
+      <main className="flex-1 overflow-y-auto overscroll-contain pb-24 px-4 pt-4 lg:px-10 lg:pt-8" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10">
+          <div className="space-y-4 lg:space-y-6">
+            {/* Stats Section */}
         <motion.section 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -394,6 +420,8 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
             </motion.div>
           )}
         </AnimatePresence>
+          </div>
+          <div className="space-y-4 lg:space-y-6">
 
         {/* Settings */}
         <motion.section
@@ -415,19 +443,19 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
               </div>
               <div className="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100">
                 <button 
-                  onClick={() => language !== 'en' && onToggleLanguage()}
+                  onClick={() => language !== 'en' && onToggleLanguage('en')}
                   className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${language === 'en' ? 'bg-white text-primary shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   English
                 </button>
                 <button 
-                  onClick={() => language !== 'hi' && onToggleLanguage()}
+                  onClick={() => language !== 'hi' && onToggleLanguage('hi')}
                   className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${language === 'hi' ? 'bg-white text-primary shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   हिंदी
                 </button>
                 <button 
-                  onClick={() => language !== 'kn' && onToggleLanguage()}
+                  onClick={() => language !== 'kn' && onToggleLanguage('kn')}
                   className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${language === 'kn' ? 'bg-white text-primary shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   ಕನ್ನಡ
@@ -474,7 +502,14 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
               <ChevronRight size={18} className="text-gray-400" />
             </motion.button>
             
-            <motion.button whileTap={{ scale: 0.98, backgroundColor: '#fef2f2' }} className="w-full p-4 flex items-center justify-between hover:bg-red-50 transition group">
+            <motion.button 
+              whileTap={{ scale: 0.98, backgroundColor: '#fef2f2' }} 
+              onClick={async () => {
+                await signOut();
+                window.location.reload();
+              }}
+              className="w-full p-4 flex items-center justify-between hover:bg-red-50 transition group"
+            >
               <div className="flex items-center gap-3 text-red-600">
                 <div className="bg-red-50 p-2 rounded-xl group-hover:bg-red-100 transition">
                   <LogOut size={18} />
@@ -493,6 +528,8 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
         >
           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">AgroCare App v1.0.0</p>
         </motion.div>
+          </div>
+        </div>
       </main>
     </div>
   );

@@ -13,7 +13,7 @@ interface Message {
 interface ChatProps {
   onBack: () => void;
   language: Language;
-  onToggleLanguage: () => void;
+  onToggleLanguage: (lang?: Language) => void;
 }
 
 export const Chat: React.FC<ChatProps> = ({ onBack, language, onToggleLanguage }) => {

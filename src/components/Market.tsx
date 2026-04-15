@@ -5,6 +5,7 @@ import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
 import { toast } from 'sonner';
 import { CropPrice, Language } from '../types';
 import { fetchKarnatakaMarketPrices } from '../services/marketApi';
+import { useTranslation } from 'react-i18next';
 
 const WATCHLIST_CROPS = [
   { id: 'w1', name: 'Wheat', nameHi: 'गेहूं', price: 2250, change: 45, changePercent: 2.0, trend: 'up', icon: '🌾' },
@@ -54,6 +55,7 @@ type Category = 'All' | 'Grains' | 'Vegetables' | 'Oilseeds' | 'Fruits';
 type SortOption = 'price-asc' | 'price-desc' | 'change-desc' | 'change-asc' | 'none';
 
 export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }) => {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<Category>('All');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
@@ -191,7 +193,7 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1 text-center">
-            <h1 className="text-xl font-black tracking-wide text-white">Market Prices</h1>
+            <h1 className="text-xl font-black tracking-wide text-white">{t('agro.marketPrice')}</h1>
             <p className="text-[10px] font-bold text-green-200/80 uppercase tracking-widest mt-1 flex items-center justify-center gap-1">
               <MapPin size={10} /> Tumkur, Karnataka, India
             </p>
@@ -240,10 +242,11 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Sort By</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { id: 'price-desc', label: 'Price: High to Low' },
-                  { id: 'price-asc', label: 'Price: Low to High' },
-                  { id: 'change-desc', label: 'Gainers (Change %)' },
-                  { id: 'change-asc', label: 'Losers (Change %)' },
+                  { id: 'none', label: 'Default (Clear Sort)' },
+                  { id: 'price-desc', label: 'Price: High → Low' },
+                  { id: 'price-asc', label: 'Price: Low → High' },
+                  { id: 'change-desc', label: 'Gainers (↑ %)' },
+                  { id: 'change-asc', label: 'Losers (↓ %)' },
                 ].map((opt) => (
                   <button
                     key={opt.id}
@@ -350,7 +353,8 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
                   <Bell size={18} className="text-primary" /> Active Price Alerts
                 </h2>
                 <div className="flex flex-col gap-3">
-                  {Object.entries(alerts).map(([cropId, alert]) => {
+                  {Object.entries(alerts).map(([cropId, alertData]) => {
+                    const alert = alertData as { threshold: number, direction: 'above' | 'below' };
                     const crop = crops.find(c => c.id === cropId) || WATCHLIST_CROPS.find(c => c.id === cropId);
                     if (!crop) return null;
                     return (
@@ -391,10 +395,10 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
             {(!searchQuery && selectedCategory === 'All') && (
               <div className="mb-6">
                 <h2 className="text-lg font-bold text-earth mb-3">My Watchlist</h2>
-                <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-2 -mx-4 px-4">
+                <div className="flex gap-4 overflow-x-auto hide-scrollbar pb-4 -mx-4 px-4">
                   {WATCHLIST_CROPS.map(crop => (
-                    <div key={crop.id} className="min-w-[140px] bg-white p-4 rounded-2xl shadow-sm border border-gray-100 shrink-0">
-                      <div className="flex justify-between items-start mb-2">
+                    <div key={crop.id} className="min-w-[150px] bg-white p-5 rounded-2xl shadow-md border border-gray-200 shrink-0 hover:shadow-lg transition-shadow">
+                      <div className="flex justify-between items-start mb-3">
                         <span className="text-2xl">{crop.icon}</span>
                         <div className={`flex items-center text-xs font-bold ${crop.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
                           {crop.trend === 'up' ? <TrendingUp size={12} className="mr-0.5" /> : <TrendingDown size={12} className="mr-0.5" />}
@@ -413,20 +417,20 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
             {(!searchQuery && selectedCategory === 'All') && (
               <div className="mb-6">
                 <h2 className="text-lg font-bold text-earth mb-3">Arbitrage Opportunities</h2>
-                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 relative overflow-hidden shadow-sm">
-                  <div className="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider shadow-sm">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 relative overflow-hidden shadow-md">
+                  <div className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-bl-xl uppercase tracking-wider shadow-sm">
                     Smart Insight
                   </div>
-                  <div className="flex items-start gap-3 mt-2">
-                    <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                  <div className="flex items-start gap-4 mt-2">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 shadow-inner">
                       <MapPin size={24} />
                     </div>
                     <div>
                       <h3 className="font-bold text-blue-900 text-base mb-1">Sell {ARBITRAGE_OPPORTUNITY.cropName} in {ARBITRAGE_OPPORTUNITY.targetMandi}</h3>
-                      <p className="text-sm text-blue-800 mb-3 leading-snug">
-                        Prices are <span className="font-bold text-green-700">+₹{ARBITRAGE_OPPORTUNITY.difference}/q</span> higher than your local mandi ({ARBITRAGE_OPPORTUNITY.localMandi}).
+                      <p className="text-sm text-blue-800 mb-3 leading-snug font-medium">
+                        Prices are <span className="font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded">+₹{ARBITRAGE_OPPORTUNITY.difference}/q</span> higher than your local mandi ({ARBITRAGE_OPPORTUNITY.localMandi}).
                       </p>
-                      <div className="flex items-center gap-2 text-xs font-semibold text-blue-800 bg-blue-100/70 inline-flex px-3 py-1.5 rounded-lg">
+                      <div className="flex items-center gap-2 text-xs font-bold text-blue-900 bg-blue-100/80 inline-flex px-3 py-1.5 rounded-lg border border-blue-200">
                         <span className="flex items-center gap-1"><Store size={12} /> {ARBITRAGE_OPPORTUNITY.distance}</span>
                         <span className="w-1 h-1 rounded-full bg-blue-300"></span>
                         <span className="text-green-700">Est. Profit: {ARBITRAGE_OPPORTUNITY.profitMargin}</span>
@@ -445,138 +449,140 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
               <p className="text-xs text-gray-500 font-medium">{filteredCrops.length} items found</p>
             </div>
 
-            <AnimatePresence mode="popLayout">
-              {filteredCrops.length > 0 ? (
-                filteredCrops.map((crop, index) => (
-                  <motion.div 
-                    layout
-                    key={crop.id} 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ delay: index * 0.05 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => onSelectCrop(crop)}
-                    className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-shadow cursor-pointer"
-                  >
-              <div className="flex justify-between items-start mb-3">
-                <div className="flex gap-3">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center shrink-0 ${
-                    crop.category === 'Grains' ? 'bg-amber-100' : 
-                    crop.category === 'Vegetables' ? 'bg-purple-100' : 
-                    crop.category === 'Oilseeds' ? 'bg-yellow-100' : 'bg-orange-100'
-                  }`}>
-                    <span className="text-2xl">{crop.icon}</span>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-earth leading-tight">
-                      {crop.name} 
-                      <span className="text-sm font-medium text-gray-500">
-                        | {language === 'hi' ? crop.nameHi : language === 'kn' ? crop.nameKn : crop.name}
-                      </span>
-                    </h3>
-                    <div className="flex flex-col gap-1 mt-1">
-                      <p className="text-xs text-gray-500 flex items-center gap-1">
-                        <Store size={12} />
-                        {crop.mandi}
-                      </p>
-                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary-dark/60 bg-primary/5 px-2 py-0.5 rounded-full">
-                          {crop.category}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <AnimatePresence mode="popLayout">
+                {filteredCrops.length > 0 ? (
+                  filteredCrops.map((crop, index) => (
+                    <motion.div 
+                      layout
+                      key={crop.id} 
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ delay: index * 0.05 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => onSelectCrop(crop)}
+                      className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between"
+                    >
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex gap-3">
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center shrink-0 ${
+                      crop.category === 'Grains' ? 'bg-amber-100' : 
+                      crop.category === 'Vegetables' ? 'bg-purple-100' : 
+                      crop.category === 'Oilseeds' ? 'bg-yellow-100' : 'bg-orange-100'
+                    }`}>
+                      <span className="text-2xl">{crop.icon}</span>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-earth leading-tight">
+                        {crop.name} 
+                        <span className="text-sm font-medium text-gray-500">
+                          | {language === 'hi' ? crop.nameHi : language === 'kn' ? crop.nameKn : crop.name}
                         </span>
-                        <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap">
-                          🤖 AI: {crop.trend === 'up' ? '+5%' : crop.trend === 'down' ? '-3%' : 'Stable'} next week
-                        </span>
+                      </h3>
+                      <div className="flex flex-col gap-1 mt-1">
+                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                          <Store size={12} />
+                          {crop.mandi}
+                        </p>
+                        <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-primary-dark/60 bg-primary/5 px-2 py-0.5 rounded-full">
+                            {crop.category}
+                          </span>
+                          <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap">
+                            🤖 AI: {crop.trend === 'up' ? '+5%' : crop.trend === 'down' ? '-3%' : 'Stable'} next week
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xl font-bold text-earth">₹{crop.price.toLocaleString()}<span className="text-sm font-normal text-gray-500">/q</span></p>
-                  <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold mt-1 ${
-                    crop.trend === 'up' ? 'bg-green-100 text-green-700' : 
-                    crop.trend === 'down' ? 'bg-red-100 text-red-700' : 
-                    'bg-gray-100 text-gray-600'
-                  }`}>
-                    {crop.trend === 'up' ? <TrendingUp size={12} className="mr-1" /> : 
-                     crop.trend === 'down' ? <TrendingDown size={12} className="mr-1" /> : 
-                     <Minus size={12} className="mr-1" />}
-                    {crop.change > 0 ? '+' : ''}₹{Math.abs(crop.change)} ({crop.changePercent}%)
+                  <div className="text-right">
+                    <p className="text-xl font-bold text-earth">₹{crop.price.toLocaleString()}<span className="text-sm font-normal text-gray-500">/q</span></p>
+                    <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold mt-1 ${
+                      crop.trend === 'up' ? 'bg-green-100 text-green-700' : 
+                      crop.trend === 'down' ? 'bg-red-100 text-red-700' : 
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {crop.trend === 'up' ? <TrendingUp size={12} className="mr-1" /> : 
+                       crop.trend === 'down' ? <TrendingDown size={12} className="mr-1" /> : 
+                       <Minus size={12} className="mr-1" />}
+                      {crop.change > 0 ? '+' : ''}₹{Math.abs(crop.change)} ({crop.changePercent}%)
+                    </div>
                   </div>
                 </div>
-              </div>
-              
-              <div className="mt-4 pt-3 border-t border-gray-100 flex items-end justify-between">
-                <div className="flex flex-col gap-2">
-                  <div className="text-xs text-gray-500">
-                    <p>Price Trend (7 Days)</p>
+                
+                <div className="mt-4 pt-3 border-t border-gray-100 flex items-end justify-between">
+                  <div className="flex flex-col gap-2">
+                    <div className="text-xs text-gray-500">
+                      <p>Price Trend (7 Days)</p>
+                    </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedCropForAlert(crop);
+                        setAlertModalOpen(true);
+                        setAlertThreshold(crop.price.toString());
+                      }}
+                      className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-md transition-colors ${
+                        alerts[crop.id] 
+                          ? 'bg-primary/10 text-primary' 
+                          : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                      }`}
+                    >
+                      <Bell size={12} className={alerts[crop.id] ? 'fill-primary' : ''} />
+                      {alerts[crop.id] ? 'Alert Set' : 'Set Alert'}
+                    </button>
                   </div>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedCropForAlert(crop);
-                      setAlertModalOpen(true);
-                      setAlertThreshold(crop.price.toString());
-                    }}
-                    className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-md transition-colors ${
-                      alerts[crop.id] 
-                        ? 'bg-primary/10 text-primary' 
-                        : 'bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                    }`}
-                  >
-                    <Bell size={12} className={alerts[crop.id] ? 'fill-primary' : ''} />
-                    {alerts[crop.id] ? 'Alert Set' : 'Set Alert'}
-                  </button>
+                  <div className="h-10 w-28">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={getMockHistoricalData(crop.price, crop.trend)}>
+                        <defs>
+                          <linearGradient id={`colorPrice-${crop.id}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={crop.trend === 'up' ? '#22c55e' : crop.trend === 'down' ? '#ef4444' : '#9ca3af'} stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor={crop.trend === 'up' ? '#22c55e' : crop.trend === 'down' ? '#ef4444' : '#9ca3af'} stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <YAxis hide domain={['dataMin - (dataMin * 0.1)', 'dataMax + (dataMax * 0.1)']} />
+                        <Area 
+                          type="monotone" 
+                          dataKey="price" 
+                          stroke={crop.trend === 'up' ? '#22c55e' : crop.trend === 'down' ? '#ef4444' : '#9ca3af'} 
+                          strokeWidth={2}
+                          fillOpacity={1} 
+                          fill={`url(#colorPrice-${crop.id})`} 
+                          isAnimationActive={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
-                <div className="h-10 w-28">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={getMockHistoricalData(crop.price, crop.trend)}>
-                      <defs>
-                        <linearGradient id={`colorPrice-${crop.id}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={crop.trend === 'up' ? '#22c55e' : crop.trend === 'down' ? '#ef4444' : '#9ca3af'} stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor={crop.trend === 'up' ? '#22c55e' : crop.trend === 'down' ? '#ef4444' : '#9ca3af'} stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <YAxis hide domain={['dataMin - (dataMin * 0.1)', 'dataMax + (dataMax * 0.1)']} />
-                      <Area 
-                        type="monotone" 
-                        dataKey="price" 
-                        stroke={crop.trend === 'up' ? '#22c55e' : crop.trend === 'down' ? '#ef4444' : '#9ca3af'} 
-                        strokeWidth={2}
-                        fillOpacity={1} 
-                        fill={`url(#colorPrice-${crop.id})`} 
-                        isAnimationActive={false}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </motion.div>
-          ))
-        ) : (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center py-12 text-center"
-          >
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 text-gray-400">
-              <Search size={32} />
-            </div>
-            <h3 className="text-lg font-bold text-earth">No crops found</h3>
-            <p className="text-sm text-gray-500 max-w-[200px]">Try adjusting your search or filters to find what you're looking for.</p>
-            <button 
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedCategory('All');
-                setPriceRange([0, 10000]);
-              }}
-              className="mt-4 text-primary font-bold hover:underline"
+              </motion.div>
+            ))
+          ) : (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center py-12 text-center col-span-full"
             >
-              Clear all filters
-            </button>
-          </motion.div>
-        )}
-        </AnimatePresence>
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 text-gray-400">
+                <Search size={32} />
+              </div>
+              <h3 className="text-lg font-bold text-earth">No crops found</h3>
+              <p className="text-sm text-gray-500 max-w-[200px]">Try adjusting your search or filters to find what you're looking for.</p>
+              <button 
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedCategory('All');
+                  setPriceRange([0, 10000]);
+                }}
+                className="mt-4 text-primary font-bold hover:underline"
+              >
+                Clear all filters
+              </button>
+            </motion.div>
+          )}
+          </AnimatePresence>
+          </div>
         </>
         )}
 

@@ -260,8 +260,10 @@ export const SchemeFinder: React.FC<SchemeFinderProps> = ({ onBack, language }) 
         </AnimatePresence>
       </header>
 
-      <main className="flex-1 p-4 pb-24 space-y-6">
-        {/* Eligibility Checker Widget */}
+      <main className="flex-1 p-4 pb-24 space-y-6 lg:p-8">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          <div className="lg:col-span-1 space-y-6">
+            {/* Eligibility Checker Widget */}
         <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="bg-[#F9A825]/10 p-4 border-b border-[#F9A825]/20 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -330,6 +332,8 @@ export const SchemeFinder: React.FC<SchemeFinderProps> = ({ onBack, language }) 
             )}
           </AnimatePresence>
         </section>
+          </div>
+          <div className="lg:col-span-2 space-y-6">
 
         {/* Categories */}
         <div className="flex overflow-x-auto hide-scrollbar gap-2 pb-2 -mx-4 px-4">
@@ -351,7 +355,7 @@ export const SchemeFinder: React.FC<SchemeFinderProps> = ({ onBack, language }) 
         {/* Results */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest">
+            <h2 className="text-sm font-black text-gray-600 uppercase tracking-widest">
               {isCheckerActive ? 'Eligible Schemes' : 'Available Schemes'}
             </h2>
             <span className="text-xs font-bold bg-[#E8F5E9] text-primary-dark px-2 py-1 rounded-md">
@@ -448,6 +452,8 @@ export const SchemeFinder: React.FC<SchemeFinderProps> = ({ onBack, language }) 
                 <p className="text-gray-500 text-sm max-w-xs mx-auto">Try adjusting your filters or eligibility criteria to see more results.</p>
               </div>
             )}
+          </div>
+        </div>
           </div>
         </div>
       </main>

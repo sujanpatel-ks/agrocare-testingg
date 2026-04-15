@@ -1,0 +1,19 @@
+{
+  "nav": {
+    "home": "मुख्यपृष्ठ",
+    "market": "बाजार",
+    "community": "समुदाय",
+    "calendar": "कॅलेंडर",
+    "profile": "प्रोफाइल"
+  },
+  "dashboard": {
+    "title": "डॅशबोर्ड",
+    "scan": "स्कॅन",
+    "soil": "माती विश्लेषण"
+  },
+  "agro": {
+    "cropHealth": "पीक आरोग्य",
+    "pestDetected": "कीड आढळली",
+    "marketPrice": "बाजार भाव"
+  }
+}

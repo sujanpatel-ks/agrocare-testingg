@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ShoppingBag, Filter, Navigation, Star, Phone, MapPin, Loader2, LocateFixed, Compass } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Filter, Navigation, Star, Phone, MapPin, Loader2, LocateFixed, Compass, Info } from 'lucide-react';
 import { Supplier } from '../types';
 import { SUPPLIERS } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
@@ -52,6 +52,7 @@ const selectedIcon = new L.Icon({
 interface SuppliersProps {
   onBack: () => void;
   language: Language;
+  initialSearch?: string;
 }
 
 // Component to handle map centering
@@ -79,13 +80,16 @@ function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   return R * c;
 }
 
-export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
+export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language, initialSearch }) => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
-  const { latitude, longitude, loading: locationLoading, error: locationError } = useGeolocation();
+  const { latitude: geoLat, longitude: geoLng, loading: locationLoading, error: locationError } = useGeolocation();
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isFallback, setIsFallback] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string | null>(initialSearch || null);
   const [openingHours, setOpeningHours] = useState<string>('All');
   const [maxDistance, setMaxDistance] = useState<number>(10);
   const [minRating, setMinRating] = useState<number>(0);
@@ -100,12 +104,26 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
   }, [selectedSupplier]);
 
   useEffect(() => {
-    if (locationError) {
-      setError(locationError);
-      setLoading(false);
-      return;
+    if (geoLat && geoLng) {
+      setLatitude(geoLat);
+      setLongitude(geoLng);
+      setError(null);
+      setIsFallback(false);
     }
+  }, [geoLat, geoLng]);
 
+  useEffect(() => {
+    if (locationError) {
+      // If geolocation fails, we'll provide a fallback to Bangalore, India
+      console.warn("Geolocation failed:", locationError);
+      setLatitude(12.9716);
+      setLongitude(77.5946);
+      setError("Geolocation restricted in preview. Using default location (Bangalore).");
+      setIsFallback(true);
+    }
+  }, [locationError]);
+
+  useEffect(() => {
     if (latitude && longitude) {
       if (!initialLocationRef.current) {
         initialLocationRef.current = { lat: latitude, lng: longitude };
@@ -259,9 +277,9 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
         </AnimatePresence>
       </div>
 
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Map Visualization */}
-        <div className="h-[45vh] shrink-0 w-full bg-gray-200 relative z-10">
+        <div className="h-[45vh] md:h-full md:w-1/2 lg:w-3/5 shrink-0 w-full bg-gray-200 relative z-10">
           {latitude && longitude ? (
             <MapContainer 
               center={[latitude, longitude]} 
@@ -336,12 +354,12 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
         </div>
 
         {/* List Section */}
-        <div className="flex-1 bg-white rounded-t-[32px] shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.3)] z-20 -mt-6 flex flex-col overflow-hidden relative">
-          <div className="w-full flex justify-center pt-4 pb-2 shrink-0 bg-white rounded-t-[32px] z-50">
+        <div className="flex-1 md:w-1/2 lg:w-2/5 bg-white rounded-t-[32px] md:rounded-none md:rounded-l-[32px] shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.3)] md:shadow-[-8px_0_30px_-15px_rgba(0,0,0,0.3)] z-20 -mt-6 md:mt-0 flex flex-col overflow-hidden relative">
+          <div className="w-full flex justify-center pt-4 pb-2 shrink-0 bg-white rounded-t-[32px] md:hidden z-50">
             <div className="w-16 h-1.5 bg-gray-200 rounded-full"></div>
           </div>
           
-          <div className="px-6 py-4 flex-1 overflow-y-auto overscroll-contain pb-24" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="px-6 py-4 md:py-8 flex-1 overflow-y-auto overscroll-contain pb-24 md:pb-8" style={{ WebkitOverflowScrolling: 'touch' }}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">
                 {loading ? 'Searching...' : `${suppliers.length} Suppliers Found`}
@@ -349,6 +367,17 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
               <span className="text-xs font-black text-[#1B5E20] bg-[#E8F5E9] px-4 py-1.5 rounded-full shadow-sm">25km Radius</span>
             </div>
             
+            {isFallback && error && (
+              <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
+                <Info className="text-amber-600 shrink-0 mt-0.5" size={18} />
+                <div className="flex-1">
+                  <p className="text-xs text-amber-800 font-medium leading-relaxed">
+                    {error} <button onClick={() => window.open(window.location.href, '_blank')} className="underline font-bold">Open in new tab</button> for full GPS accuracy.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {loading ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="relative mb-6">
@@ -360,7 +389,7 @@ export const Suppliers: React.FC<SuppliersProps> = ({ onBack, language }) => {
                 <p className="text-earth font-black text-lg">Locating nearby stores...</p>
                 <p className="text-gray-400 text-sm mt-1 font-medium">Using real-time GPS precision</p>
               </div>
-            ) : error ? (
+            ) : error && !isFallback ? (
               <div className="bg-red-50 p-8 rounded-[32px] text-center border border-red-100 shadow-inner">
                 <p className="text-red-600 font-bold text-lg">{error}</p>
                 <button 

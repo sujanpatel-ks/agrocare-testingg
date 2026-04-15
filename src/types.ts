@@ -30,6 +30,24 @@ export interface Supplier {
   lng?: number;
 }
 
+export interface PollOption {
+  id: string;
+  text: string;
+  votes: number;
+}
+
+export interface Poll {
+  question: string;
+  options: PollOption[];
+  totalVotes: number;
+  userVotedOption?: string;
+}
+
+export interface MediaItem {
+  type: 'image' | 'video';
+  url: string;
+}
+
 export interface Discussion {
   id: string;
   author: string;
@@ -39,8 +57,11 @@ export interface Discussion {
   title: string;
   content: string;
   tags: string[];
-  image: string;
+  image?: string;
+  media?: MediaItem[];
+  poll?: Poll;
   likes: number;
+  hasUpvoted?: boolean;
   comments: number;
 }
 

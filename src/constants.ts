@@ -101,8 +101,8 @@ export const DISCUSSIONS: Discussion[] = [
     title: 'Natural ways to stop aphids in okra?',
     content: 'My okra crop is heavily infested with aphids. I tried neem oil but it rained right after. Looking for organic solutions that stick better during monsoon.',
     tags: ['Okra', 'PestControl'],
-    image: 'https://picsum.photos/seed/okra/400/300',
     likes: 24,
+    hasUpvoted: false,
     comments: 8,
   },
   {
@@ -114,10 +114,34 @@ export const DISCUSSIONS: Discussion[] = [
     title: 'Yellow spots on corn leaves',
     content: 'Noticed these yellow spots spreading rapidly on my corn field. Is this rust or blight? Should I spray fungicide immediately?',
     tags: ['Corn', 'Disease'],
-    image: 'https://picsum.photos/seed/corn/400/300',
     likes: 15,
+    hasUpvoted: true,
     comments: 12,
   },
+  {
+    id: '3',
+    author: 'Anita Sharma',
+    authorInitials: 'AS',
+    location: 'Pune, Maharashtra',
+    time: '1d ago',
+    title: 'Which fertilizer is best for early stage tomatoes?',
+    content: 'I am planning to use organic fertilizers for my new tomato crop. What do you all recommend?',
+    tags: ['Tomato', 'Fertilizers'],
+    poll: {
+      question: 'Which organic fertilizer works best for tomatoes?',
+      options: [
+        { id: 'p1', text: 'Vermicompost', votes: 45 },
+        { id: 'p2', text: 'Cow Dung Manure', votes: 30 },
+        { id: 'p3', text: 'Neem Cake', votes: 15 },
+        { id: 'p4', text: 'Bone Meal', votes: 10 }
+      ],
+      totalVotes: 100,
+      userVotedOption: 'p1'
+    },
+    likes: 42,
+    hasUpvoted: false,
+    comments: 18,
+  }
 ];
 
 export const TASKS: Task[] = [

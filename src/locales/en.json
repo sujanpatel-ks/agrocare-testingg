@@ -1,0 +1,19 @@
+{
+  "nav": {
+    "home": "Home",
+    "market": "Market",
+    "community": "Community",
+    "calendar": "Calendar",
+    "profile": "Profile"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "scan": "Scan Crop",
+    "soil": "Soil Analysis"
+  },
+  "agro": {
+    "cropHealth": "Crop Health",
+    "pestDetected": "Pest Detected",
+    "marketPrice": "Market Price"
+  }
+}
