@@ -2,9 +2,6 @@ import { CropPrice } from '../types';
 import { CROP_PRICES } from '../constants';
 import localMarketData from '../data/market_data.json';
 
-const API_KEY = (import.meta as any).env.VITE_DATA_GOV_IN_API_KEY || '579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b';
-const BASE_URL = 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070';
-
 const getIconForCommodity = (commodity: string) => {
   const lower = commodity.toLowerCase();
   if (lower.includes('wheat')) return '🌾';
@@ -59,8 +56,8 @@ const formatRecordsToCropPrices = (records: any[]): CropPrice[] => {
 
 export async function fetchKarnatakaMarketPrices(): Promise<CropPrice[]> {
   try {
-    // Try to fetch Karnataka data specifically, prioritizing Tumkur
-    const response = await fetch(`${BASE_URL}?api-key=${API_KEY}&format=json&filters[state]=Karnataka&filters[district]=Tumkur&limit=50`);
+    // Fetch Karnataka data specifically, prioritizing Tumkur from our secure server-side proxy
+    const response = await fetch(`/api/mandi-prices?state=Karnataka&district=Tumkur&limit=50`);
     
     if (!response.ok) {
       throw new Error('Network response was not ok');
@@ -69,12 +66,14 @@ export async function fetchKarnatakaMarketPrices(): Promise<CropPrice[]> {
     const data = await response.json();
     let records = data.records || [];
     
-    // If Karnataka data is not available for today yet, fetch general data
+    // If Karnataka data is not available for today yet, fetch general data via fallback parameter on our proxy
     if (records.length === 0) {
       console.warn('No Karnataka data available for today. Fetching general data as fallback.');
-      const fallbackResponse = await fetch(`${BASE_URL}?api-key=${API_KEY}&format=json&limit=50`);
-      const fallbackData = await fallbackResponse.json();
-      records = fallbackData.records || [];
+      const fallbackResponse = await fetch(`/api/mandi-prices?fallback=true&limit=50`);
+      if (fallbackResponse.ok) {
+        const fallbackData = await fallbackResponse.json();
+        records = fallbackData.records || [];
+      }
     }
     
     // If API is completely empty or fails, use the newly added local market data
@@ -84,8 +83,7 @@ export async function fetchKarnatakaMarketPrices(): Promise<CropPrice[]> {
     
     return formatRecordsToCropPrices(records);
   } catch (error) {
-    console.error('Error fetching market prices, falling back to local dataset:', error);
-    // Fallback to local JSON data on error
+    // Graceful fallback to local JSON data on network error (e.g. CORS, offline)
     if (localMarketData && localMarketData.records) {
       return formatRecordsToCropPrices(localMarketData.records);
     }

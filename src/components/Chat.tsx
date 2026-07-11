@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, MoreVertical, Bot, Send, Mic, Camera, Volume2, CheckCheck, Leaf, AlertTriangle, Square, Loader2, Globe } from 'lucide-react';
-import { chatWithAssistant, generateSpeech } from '../services/gemini';
+import { generateSpeech, transcribeAudio } from '../services/gemini';
 import { Language } from '../types';
+import { useConnectivity } from '../services/connectivity';
+import { chatWithModelRouter, subscribeToModelStatus, ModelStatus } from '../services/gemma';
 
 interface Message {
   role: 'user' | 'model';
@@ -18,6 +20,19 @@ interface ChatProps {
 
 export const Chat: React.FC<ChatProps> = ({ onBack, language, onToggleLanguage }) => {
   const [messages, setMessages] = useState<Message[]>([]);
+  const isOnline = useConnectivity();
+  const [modelStatus, setModelStatus] = useState<ModelStatus>({
+    model: 'gemini',
+    isFallback: false,
+    isOnline: isOnline
+  });
+
+  useEffect(() => {
+    const unsubscribe = subscribeToModelStatus((status) => {
+      setModelStatus(status);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     setMessages(prev => {
@@ -26,10 +41,10 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language, onToggleLanguage }
           {
             role: 'model',
             text: language === 'hi' 
-              ? "नमस्ते! 🙏 मैं आपका एग्रोकेयर सहायक हूं। आपके द्वारा अपलोड की गई तस्वीर के आधार पर, मुझे आपकी टमाटर की फसल पर लेट ब्लाइट के लक्षण दिखाई दे रहे हैं। मैं इसे ठीक करने में आपकी कैसे मदद कर सकता हूं?" 
+              ? "नमस्ते! 🙏 मैं आपका एग्रोकेयर सहायक हूं। मैं खेती, फसल की बीमारियों और मंडी के भाव जानने में आपकी कैसे मदद कर सकता हूं?" 
               : language === 'kn'
-              ? "ನಮಸ್ಕಾರ! 🙏 ನಾನು ನಿಮ್ಮ ಅಗ್ರೋಕೇರ್ ಸಹಾಯಕ. ನೀವು ಅಪ್‌ಲೋಡ್ ಮಾಡಿದ ಫೋಟೋ ಆಧಾರದ ಮೇಲೆ, ನಿಮ್ಮ ಟೊಮೆಟೊ ಬೆಳೆಯಲ್ಲಿ ಲೇಟ್ ಬ್ಲೈಟ್ ಲಕ್ಷಣಗಳು ಕಾಣಿಸುತ್ತಿವೆ. ಇದನ್ನು ಗುಣಪಡಿಸಲು ನಾನು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಲಿ?"
-              : "Namaste! 🙏 I'm your AgroCare assistant. Based on the photo you uploaded, I see signs of Late Blight on your tomato crop. How can I help you treat it?",
+              ? "ನಮಸ್ಕಾರ! 🙏 ನಾನು ನಿಮ್ಮ ಅಗ್ರೋಕೇರ್ ಸಹಾಯಕ. ಕೃಷಿ, ಬೆಳೆ ರೋಗಗಳು ಮತ್ತು ಮಾರುಕಟ್ಟೆ ಬೆಲೆಗಳ ಬಗ್ಗೆ ನಾನು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಲಿ?"
+              : "Namaste! 🙏 I'm your AgroCare assistant. How can I help you today with farming advice, crop diseases, or market prices?",
             time: '10:30 AM'
           }
         ];
@@ -40,12 +55,15 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language, onToggleLanguage }
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [sessionId] = useState(() => crypto.randomUUID());
   const [playingAudioIndex, setPlayingAudioIndex] = useState<number | null>(null);
   const [loadingAudioIndex, setLoadingAudioIndex] = useState<number | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const currentAudioRequestRef = useRef<number | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const initialInputRef = useRef<string>('');
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -70,45 +88,88 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language, onToggleLanguage }
     };
   }, []);
 
-  const handleMicClick = () => {
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const handleMicClick = async () => {
     if (isListening) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
       setIsListening(false);
-      // Note: We can't easily stop the native recognition instance here without keeping a ref to it,
-      // but setting isListening to false will update the UI.
       return;
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Speech recognition is not supported in this browser.");
-      return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(track => track.stop());
+        const mimeType = mediaRecorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        
+        setIsLoading(true);
+        try {
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = async () => {
+            try {
+              const base64Audio = reader.result as string;
+              const text = await transcribeAudio(base64Audio, mimeType, language);
+              if (text && text.trim()) {
+                setInputText(prev => prev ? `${prev} ${text.trim()}` : text.trim());
+              }
+            } catch (error) {
+              console.warn("Transcription API error on client:", error);
+            } finally {
+              setIsLoading(false);
+            }
+          };
+        } catch (error) {
+          console.error("Transcription error:", error);
+          setIsLoading(false);
+        }
+      };
+
+      mediaRecorder.start();
+      setIsListening(true);
+    } catch (error) {
+      console.error("Error accessing microphone:", error);
+      alert("Microphone access is required to use voice input.");
+      
+      // Fallback to Web Speech API if MediaRecorder fails (e.g. some browser permissions)
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        initialInputRef.current = inputText;
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-US';
+
+        recognition.onstart = () => setIsListening(true);
+        recognition.onresult = (event: any) => {
+          let fullTranscript = '';
+          for (let i = 0; i < event.results.length; i++) {
+            fullTranscript += event.results[i][0].transcript;
+          }
+          const newText = initialInputRef.current ? `${initialInputRef.current} ${fullTranscript}` : fullTranscript;
+          setInputText(newText);
+        };
+        recognition.onerror = () => setIsListening(false);
+        recognition.onend = () => setIsListening(false);
+        try { recognition.start(); } catch(e) { setIsListening(false); }
+      }
     }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = language === 'hi' ? 'hi-IN' : language === 'kn' ? 'kn-IN' : 'en-US';
-
-    recognition.onstart = () => setIsListening(true);
-    
-    recognition.onresult = (event: any) => {
-      const transcript = Array.from(event.results)
-        .map((result: any) => result[0])
-        .map((result: any) => result.transcript)
-        .join('');
-      setInputText(transcript);
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("Speech recognition error", event.error);
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognition.start();
   };
 
   const handlePlayAudio = async (text: string, index: number) => {
@@ -194,11 +255,42 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language, onToggleLanguage }
         
         audioSourceRef.current = source;
         source.start();
+      } else {
+        throw new Error("No audio data returned from speech generator");
       }
     } catch (error) {
-      console.error("Failed to play audio:", error);
-      setLoadingAudioIndex(null);
-      setPlayingAudioIndex(null);
+      console.warn("Failed to play Gemini TTS audio, falling back to browser SpeechSynthesis:", error);
+      try {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          if (language === 'hi') {
+            utterance.lang = 'hi-IN';
+          } else if (language === 'kn') {
+            utterance.lang = 'kn-IN';
+          } else {
+            utterance.lang = 'en-IN';
+          }
+          utterance.onend = () => {
+            setPlayingAudioIndex(null);
+            setLoadingAudioIndex(null);
+          };
+          utterance.onerror = () => {
+            setPlayingAudioIndex(null);
+            setLoadingAudioIndex(null);
+          };
+          setPlayingAudioIndex(index);
+          setLoadingAudioIndex(null);
+          window.speechSynthesis.speak(utterance);
+        } else {
+          setLoadingAudioIndex(null);
+          setPlayingAudioIndex(null);
+        }
+      } catch (synthErr) {
+        console.error("Browser speech synthesis fallback failed too:", synthErr);
+        setLoadingAudioIndex(null);
+        setPlayingAudioIndex(null);
+      }
     }
   };
 
@@ -223,7 +315,7 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language, onToggleLanguage }
           parts: [{ text: m.text }]
         }));
 
-      const response = await chatWithAssistant(inputText, history, language);
+      const response = await chatWithModelRouter(inputText, history, language, sessionId);
       
       const botMessage: Message = {
         role: 'model',
@@ -234,6 +326,16 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language, onToggleLanguage }
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       console.error(error);
+      const errorMessage: Message = {
+        role: 'model',
+        text: language === 'hi' 
+          ? "माफ़ कीजिये, अभी कोई समस्या आ रही है। कृपया कुछ देर बाद फिर से प्रयास करें।" 
+          : language === 'kn'
+          ? "ಕ್ಷಮಿಸಿ, ಸಂಪರ್ಕಿಸಲು ತೊಂದರೆಯಾಗುತ್ತಿದೆ. ದಯವಿಟ್ಟು ನಂತರ ಪ್ರಯತ್ನಿಸಿ."
+          : "I'm sorry, I'm having trouble connecting right now. Please try again.",
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
@@ -241,7 +343,7 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language, onToggleLanguage }
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#F0F2F5] relative shadow-xl overflow-hidden">
-      <header className="bg-primary-dark text-white px-4 py-3 flex items-center shadow-md z-10 shrink-0 pt-12">
+      <header className="bg-primary-dark text-white px-4 py-3 flex items-center shadow-md z-10 shrink-0 pt-20">
         <button onClick={onBack} className="mr-3 p-1 rounded-full hover:bg-primary transition">
           <ArrowLeft size={28} />
         </button>
@@ -250,23 +352,47 @@ export const Chat: React.FC<ChatProps> = ({ onBack, language, onToggleLanguage }
             <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-primary-dark font-bold border-2 border-white overflow-hidden">
               <Bot size={24} />
             </div>
-            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-primary-dark rounded-full"></div>
+            <div className={`absolute bottom-0 right-0 w-3 h-3 ${isOnline ? 'bg-green-400' : 'bg-amber-400'} border-2 border-primary-dark rounded-full`}></div>
           </div>
           <div className="ml-3">
             <h1 className="font-bold text-lg leading-tight">AgroCare Bot</h1>
-            <p className="text-green-100 text-xs flex items-center">
-              <span className="inline-block w-1.5 h-1.5 bg-green-300 rounded-full mr-1.5"></span>
-              Online • {language === 'en' ? 'English' : language === 'hi' ? 'Hindi' : 'Kannada'}
+            <p className="text-green-100 text-xs flex items-center flex-wrap gap-x-2 gap-y-1">
+              <span className={`inline-block w-1.5 h-1.5 ${isOnline ? 'bg-green-300' : 'bg-amber-300'} rounded-full`}></span>
+              <span>{isOnline ? 'Online' : 'Offline'}</span>
+              <span className="opacity-50">•</span>
+              <span className="font-semibold bg-white/15 px-1.5 py-0.5 rounded text-[10px] tracking-wide uppercase">
+                {modelStatus.model === 'gemini' 
+                  ? 'Gemini Cloud' 
+                  : modelStatus.isFallback 
+                    ? 'Gemma Fallback' 
+                    : 'Gemma Edge'}
+              </span>
             </p>
           </div>
         </div>
-        <button onClick={onToggleLanguage} className="p-2 mr-1 rounded-full hover:bg-primary transition flex items-center justify-center" aria-label="Toggle Language">
+        <button onClick={() => onToggleLanguage()} className="p-2 mr-1 rounded-full hover:bg-primary transition flex items-center justify-center" aria-label="Toggle Language">
           <Globe size={24} />
         </button>
         <button className="p-2 rounded-full hover:bg-primary transition">
           <MoreVertical size={24} />
         </button>
       </header>
+
+      {(!isOnline || modelStatus.model === 'gemma') && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-800 px-4 py-2 text-xs font-bold flex items-center justify-between animate-fadeIn z-10">
+          <div className="flex items-center gap-1.5">
+            <AlertTriangle size={14} className="text-amber-600 animate-pulse shrink-0" />
+            <span>
+              {!isOnline 
+                ? "Offline Resilience Mode — Running Gemma Edge on Device" 
+                : "Gemini Quota Limited — Auto fell back to local Gemma Edge"}
+            </span>
+          </div>
+          <span className="text-[10px] bg-amber-600 text-white px-1.5 py-0.5 rounded tracking-wider uppercase font-semibold shrink-0 ml-2">
+            {modelStatus.isFallback ? 'FAILOVER' : 'OFFLINE'}
+          </span>
+        </div>
+      )}
 
       <main className="flex-1 overflow-y-auto p-4 space-y-6 hide-scrollbar pb-32">
         <div className="flex justify-center">

@@ -6,11 +6,13 @@ import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/aut
 const AuthContext = createContext<{
   user: User | null;
   loading: boolean;
+  isAuthenticating: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
 }>({
   user: null,
   loading: true,
+  isAuthenticating: false,
   signIn: async () => {},
   signOut: async () => {},
 });
@@ -18,6 +20,7 @@ const AuthContext = createContext<{
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -28,10 +31,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signIn = async () => {
+    if (isAuthenticating) return;
+    setIsAuthenticating(true);
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error signing in:', error);
+      if (error.code !== 'auth/cancelled-popup-request' && error.code !== 'auth/popup-closed-by-user') {
+        // You could use a toast library here if you wanted, but logging is fine
+      }
+    } finally {
+      setIsAuthenticating(false);
     }
   };
 
@@ -44,7 +54,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut: signOutUser }}>
+    <AuthContext.Provider value={{ user, loading, isAuthenticating, signIn, signOut: signOutUser }}>
       {children}
     </AuthContext.Provider>
   );

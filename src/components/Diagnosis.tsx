@@ -1,11 +1,16 @@
 import React, { useState, useRef } from 'react';
-import { ArrowLeft, Share2, Volume2, Droplets, Layers, Stethoscope, Store, Bot, CloudRain, CheckCircle, Clock, ChevronDown, Bug, Info, ShieldCheck, AlertTriangle, PhoneCall, MapPin, Calendar, Check, FileDown, Loader2 } from 'lucide-react';
+import { ArrowLeft, Share2, Volume2, Droplets, Layers, Stethoscope, Store, Bot, CloudRain, CheckCircle, Clock, ChevronDown, Bug, Info, ShieldCheck, AlertTriangle, PhoneCall, MapPin, Calendar, Check, FileDown, Loader2, Bookmark, BookmarkCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DiagnosisResult, generateSpeech } from '../services/gemini';
 import { Task, Language } from '../types';
 import { LiveAudioChat } from './LiveAudioChat';
+import WhatsAppShare from './WhatsAppShare';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
+import { collection, addDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { useAuth } from '../AuthProvider';
+import { toast } from 'sonner';
 
 interface DiagnosisProps {
   result: DiagnosisResult | null;
@@ -19,11 +24,14 @@ interface DiagnosisProps {
 }
 
 export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language, onBack, onAskAI, onFindSupplier, onSaveToCalendar, onToggleLanguage }) => {
+  const { user } = useAuth();
   const [savedTasks, setSavedTasks] = useState<Set<string>>(new Set());
   const [treatmentType, setTreatmentType] = useState<'organic' | 'chemical'>('organic');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLiveAudioOpen, setIsLiveAudioOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -52,7 +60,10 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
       goBack: "Go Back",
       pestDetected: "Pest Detected",
       cropHealth: "Crop Health",
-      exportPDF: "Export PDF"
+      exportPDF: "Export PDF",
+      saveToProfile: "Save to Profile",
+      saving: "Saving...",
+      saved: "Saved to Profile"
     },
     hi: {
       title: "निदान परिणाम",
@@ -78,7 +89,10 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
       goBack: "वापस जाएं",
       pestDetected: "कीट का पता चला",
       cropHealth: "फसल स्वास्थ्य",
-      exportPDF: "PDF निर्यात करें"
+      exportPDF: "PDF निर्यात करें",
+      saveToProfile: "प्रोफ़ाइल में सहेजें",
+      saving: "सहेज रहा है...",
+      saved: "प्रोफ़ाइल में सहेजा गया"
     },
     kn: {
       title: "ರೋಗನಿರ್ಣಯದ ಫಲಿತಾಂಶ",
@@ -104,7 +118,10 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
       goBack: "ಹಿಂದಕ್ಕೆ ಹೋಗಿ",
       pestDetected: "ಕೀಟ ಪತ್ತೆಯಾಗಿದೆ",
       cropHealth: "ಬೆಳೆ ಆರೋಗ್ಯ",
-      exportPDF: "PDF ರಫ್ತು ಮಾಡಿ"
+      exportPDF: "PDF ರಫ್ತು ಮಾಡಿ",
+      saveToProfile: "ಪ್ರೊಫೈಲ್‌ಗೆ ಉಳಿಸಿ",
+      saving: "ಉಳಿಸಲಾಗುತ್ತಿದೆ...",
+      saved: "ಪ್ರೊಫೈಲ್‌ಗೆ ಉಳಿಸಲಾಗಿದೆ"
     }
   }[language];
 
@@ -186,12 +203,11 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
     if (!reportRef.current) return;
     setIsExporting(true);
     try {
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
+      const imgData = await toPng(reportRef.current, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: '#FFFFFF',
       });
-      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgProps = pdf.getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -206,24 +222,52 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
     }
   };
 
+  const handleSaveToFirebase = async () => {
+    if (!result || !user) {
+      toast.error(language === 'hi' ? 'कृपया पहले साइन इन करें' : language === 'kn' ? 'ದಯವಿಟ್ಟು ಮೊದಲು ಸೈನ್ ಇನ್ ಮಾಡಿ' : 'Please sign in first');
+      return;
+    }
+    
+    setIsSaving(true);
+    const path = `users/${user.uid}/diagnoses`;
+    
+    try {
+      await addDoc(collection(db, path), {
+        userId: user.uid,
+        crop: result.crop,
+        disease: result.disease,
+        confidence: result.confidence,
+        severity: result.severity,
+        timestamp: new Date().toISOString(),
+        imageUrl: imageUrl,
+        diagnosis: result
+      });
+      
+      setIsSaved(true);
+      toast.success(t.saved);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-soil w-full bg-white overflow-hidden relative">
-      <header className="bg-white px-4 py-3 border-b border-gray-100 flex items-center justify-between sticky top-0 z-20 pt-12">
+    <div className="flex flex-col min-h-screen bg-soil w-full bg-white overflow-hidden relative">
+      <header className="bg-white px-4 py-3 border-b border-gray-100 flex items-center justify-between sticky top-0 z-20 pt-20">
         <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-100">
           <ArrowLeft size={24} className="text-gray-700" />
         </button>
         <h1 className="font-semibold text-lg text-gray-800">{t.title}</h1>
         <div className="flex items-center gap-2">
-          <div className="bg-gray-100 rounded-full p-1 flex items-center border border-gray-200 relative w-24 h-7 cursor-pointer" onClick={onToggleLanguage}>
-            <motion.div 
-              className="absolute bg-white rounded-full h-5 w-7 shadow-sm"
-              animate={{ x: language === 'en' ? 0 : language === 'hi' ? 28 : 56 }}
-              transition={{ type: "spring", stiffness: 500, damping: 30 }}
-            />
-            <button className={`relative z-10 flex-1 text-[8px] font-black transition-colors ${language === 'en' ? 'text-primary' : 'text-gray-400'}`}>EN</button>
-            <button className={`relative z-10 flex-1 text-[8px] font-black transition-colors ${language === 'hi' ? 'text-primary' : 'text-gray-400'}`}>HI</button>
-            <button className={`relative z-10 flex-1 text-[8px] font-black transition-colors ${language === 'kn' ? 'text-primary' : 'text-gray-400'}`}>KN</button>
-          </div>
+          <button 
+            onClick={handleSaveToFirebase}
+            disabled={isSaving || isSaved || !user}
+            className={`p-2 rounded-full transition-all ${isSaved ? 'text-green-600 bg-green-50' : 'text-gray-700 hover:bg-gray-100 disabled:opacity-50'}`}
+            title={t.saveToProfile}
+          >
+            {isSaving ? <Loader2 size={24} className="animate-spin" /> : isSaved ? <BookmarkCheck size={24} /> : <Bookmark size={24} />}
+          </button>
           <button className="p-2 rounded-full hover:bg-gray-100">
             <Share2 size={24} className="text-gray-700" />
           </button>
@@ -535,7 +579,7 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
 
         {/* Severe Case Section */}
         {result.severity === 'High' && (
-          <div className="px-5 pb-10">
+          <div className="px-5 pb-6">
             <div className="bg-red-50 border border-red-100 rounded-2xl p-5 flex flex-col gap-4">
               <div className="flex items-center gap-3">
                 <div className="bg-red-100 p-2 rounded-xl text-red-600">
@@ -553,6 +597,11 @@ export const Diagnosis: React.FC<DiagnosisProps> = ({ result, imageUrl, language
             </div>
           </div>
         )}
+
+        {/* WhatsApp Share Component */}
+        <div className="px-5 pb-10">
+          <WhatsAppShare diagnosis={result} lang={language} />
+        </div>
           </div>
         </div>
       </main>

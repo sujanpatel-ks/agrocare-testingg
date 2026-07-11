@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, User, Settings, Bell, Shield, HelpCircle, LogOut, ChevronRight, MapPin, Edit3, Globe, Save, X, Camera, MessageSquare, Award, Star, Phone, Droplets, Sprout } from 'lucide-react';
+import { ArrowLeft, User, Settings, Bell, Shield, HelpCircle, LogOut, ChevronRight, MapPin, Edit3, Globe, Save, X, Camera, MessageSquare, Award, Star, Phone, Droplets, Sprout, History, Image as ImageIcon, ExternalLink, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Language } from '../types';
 import { useAuth } from '../AuthProvider';
+import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface ProfileProps {
   onBack: () => void;
@@ -21,11 +23,13 @@ const INITIAL_DATA = {
 };
 
 export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLanguage }) => {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [savedData, setSavedData] = useState(INITIAL_DATA);
   const [formData, setFormData] = useState(INITIAL_DATA);
   const [isLoading, setIsLoading] = useState(true);
+  const [diagnoses, setDiagnoses] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -46,6 +50,25 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
     };
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchDiagnoses = async () => {
+      setLoadingHistory(true);
+      try {
+        const path = `users/${user.uid}/diagnoses`;
+        const q = query(collection(db, path), orderBy('timestamp', 'desc'));
+        const querySnapshot = await getDocs(q);
+        const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setDiagnoses(data);
+      } catch (error) {
+        console.error("Failed to fetch diagnoses:", error);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+    fetchDiagnoses();
+  }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -91,7 +114,10 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
       currentLang: 'English',
       upgradeTitle: 'AgroCare Premium',
       upgradeDesc: 'Get advanced weather forecasts and unlimited AI scans.',
-      upgradeBtn: 'Upgrade'
+      upgradeBtn: 'Upgrade',
+      diagnosisHistory: 'Diagnosis History',
+      noHistory: 'No history yet',
+      viewReport: 'View Report'
     },
     hi: {
       profile: 'प्रोफ़ाइल',
@@ -114,7 +140,10 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
       currentLang: 'हिंदी',
       upgradeTitle: 'एग्रोकेयर प्रीमियम',
       upgradeDesc: 'उन्नत मौसम पूर्वानुमान और असीमित एआई स्कैन प्राप्त करें।',
-      upgradeBtn: 'अपग्रेड करें'
+      upgradeBtn: 'अपग्रेड करें',
+      diagnosisHistory: 'निदान इतिहास',
+      noHistory: 'अभी तक कोई इतिहास नहीं',
+      viewReport: 'रिपोर्ट देखें'
     },
     kn: {
       profile: 'ಪ್ರೊಫೈಲ್',
@@ -137,7 +166,10 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
       currentLang: 'ಕನ್ನಡ',
       upgradeTitle: 'ಆಗ್ರೋಕೇರ್ ಪ್ರೀಮಿಯಂ',
       upgradeDesc: 'ಸುಧಾರಿತ ಹವಾಮಾನ ಮುನ್ಸೂಚನೆಗಳು ಮತ್ತು ಅನಿಯಮಿತ AI ಸ್ಕ್ಯಾನ್‌ಗಳನ್ನು ಪಡೆಯಿರಿ.',
-      upgradeBtn: 'ಅಪ್‌ಗ್ರೇಡ್ ಮಾಡಿ'
+      upgradeBtn: 'ಅಪ್‌ಗ್ರೇಡ್ ಮಾಡಿ',
+      diagnosisHistory: 'ರೋಗನಿರ್ಣಯದ ಇತಿಹಾಸ',
+      noHistory: 'ಇನ್ನೂ ಯಾವುದೇ ಇತಿಹಾಸವಿಲ್ಲ',
+      viewReport: 'ವರದಿ ನೋಡಿ'
     }
   }[language] || {
     profile: 'Profile',
@@ -169,7 +201,7 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
         Header Section
         Using shrink-0 and compact padding to prevent overlap with the main content.
       */}
-      <header className="bg-primary-dark text-white px-5 pt-6 pb-5 rounded-b-[24px] shadow-lg z-10 relative overflow-hidden shrink-0 lg:rounded-none lg:px-10">
+      <header className="bg-primary-dark text-white px-5 pt-20 pb-5 rounded-b-[24px] shadow-lg z-10 relative overflow-hidden shrink-0 lg:rounded-none lg:px-10">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
         <div className="absolute bottom-0 left-0 w-24 h-24 bg-primary/20 rounded-full -ml-12 -mb-12 blur-2xl"></div>
         
@@ -482,6 +514,65 @@ export const Profile: React.FC<ProfileProps> = ({ onBack, language, onToggleLang
               </div>
               <ChevronRight size={18} className="text-gray-400" />
             </motion.button>
+          </div>
+        </motion.section>
+
+        {/* Diagnosis History */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+        >
+          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3 px-2 flex items-center gap-2">
+            <History size={14} className="text-primary" /> {t.diagnosisHistory}
+          </h3>
+          <div className="space-y-3">
+            {loadingHistory ? (
+              <div className="bg-white rounded-2xl p-6 text-center shadow-sm border border-gray-100">
+                <Loader2 size={24} className="animate-spin text-primary mx-auto mb-2" />
+                <p className="text-xs text-gray-400">Loading history...</p>
+              </div>
+            ) : diagnoses.length > 0 ? (
+              diagnoses.map((diag, index) => (
+                <motion.div 
+                  key={diag.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 + index * 0.05 }}
+                  className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-3"
+                >
+                  <div className="w-12 h-12 bg-gray-50 rounded-xl overflow-hidden shrink-0 border border-gray-100">
+                    {diag.imageUrl ? (
+                      <img src={diag.imageUrl} alt={diag.crop} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-300">
+                        <ImageIcon size={20} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h4 className="font-bold text-sm text-gray-900 truncate">{diag.crop}</h4>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-wider ${
+                        diag.severity === 'High' ? 'bg-red-50 text-red-600' : 
+                        diag.severity === 'Medium' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'
+                      }`}>
+                        {diag.severity}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 font-medium truncate">{diag.disease}</p>
+                    <p className="text-[9px] text-gray-400 mt-1">{new Date(diag.timestamp).toLocaleDateString()}</p>
+                  </div>
+                  <button className="bg-gray-50 p-2 rounded-xl text-gray-400 hover:text-primary transition shrink-0">
+                    <ExternalLink size={16} />
+                  </button>
+                </motion.div>
+              ))
+            ) : (
+              <div className="bg-white rounded-2xl p-6 text-center shadow-sm border border-gray-100 italic text-gray-400 text-xs">
+                {t.noHistory}
+              </div>
+            )}
           </div>
         </motion.section>
 

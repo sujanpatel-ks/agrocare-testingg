@@ -199,9 +199,9 @@ export const SchemeFinder: React.FC<SchemeFinderProps> = ({ onBack, language }) 
   }, [searchQuery, selectedCategory, selectedState, isCheckerActive, checkerLandSize, checkerFarmerType, checkerState]);
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-[#F8F9FA]">
+    <div className="flex flex-col min-h-screen bg-[#F8F9FA]">
       {/* Header */}
-      <header className="bg-primary-dark text-white p-4 pt-12 pb-6 rounded-b-[24px] shadow-lg sticky top-0 z-30">
+      <header className="bg-primary-dark text-white p-4 pt-20 pb-6 rounded-b-[24px] shadow-lg sticky top-0 z-30">
         <div className="flex items-center gap-3 mb-4">
           <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-white/10 transition">
             <ArrowLeft size={24} />

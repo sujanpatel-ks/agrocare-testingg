@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Search, Bell, ThumbsUp, MessageSquare, Share2, Edit3, Mic, ChevronDown, Users, Image as ImageIcon, Video, BarChart2, X, CheckCircle2 } from 'lucide-react';
+import { Search, Bell, ThumbsUp, ThumbsDown, MessageSquare, Share2, Edit3, Mic, ChevronDown, Users, Image as ImageIcon, Video, BarChart2, X, CheckCircle2, Shield, Flag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DISCUSSIONS } from '../constants';
-import { Language, Discussion } from '../types';
+import { Language, Discussion, Screen } from '../types';
 
 interface CommunityProps {
   onBack: () => void;
   language: Language;
   onToggleLanguage: (lang?: Language) => void;
-  onNavigate: (screen: any) => void;
+  onNavigate: (screen: Screen) => void;
 }
 
 export const Community: React.FC<CommunityProps> = ({ onBack, language, onToggleLanguage, onNavigate }) => {
@@ -38,11 +38,52 @@ export const Community: React.FC<CommunityProps> = ({ onBack, language, onToggle
     setDiscussions(prev => prev.map(post => {
       if (post.id === id) {
         const isUpvoting = !post.hasUpvoted;
+        let likesDelta = isUpvoting ? 1 : -1;
+        let downvotesDelta = 0;
+        let newHasDownvoted = post.hasDownvoted;
+        if (isUpvoting && post.hasDownvoted) {
+          downvotesDelta = -1;
+          newHasDownvoted = false;
+        }
         return {
           ...post,
           hasUpvoted: isUpvoting,
-          likes: post.likes + (isUpvoting ? 1 : -1)
+          hasDownvoted: newHasDownvoted,
+          likes: post.likes + likesDelta,
+          downvotes: (post.downvotes || 0) + downvotesDelta
         };
+      }
+      return post;
+    }));
+  };
+
+  const handleDownvote = (id: string) => {
+    setDiscussions(prev => prev.map(post => {
+      if (post.id === id) {
+        const isDownvoting = !post.hasDownvoted;
+        let downvotesDelta = isDownvoting ? 1 : -1;
+        let likesDelta = 0;
+        let newHasUpvoted = post.hasUpvoted;
+        if (isDownvoting && post.hasUpvoted) {
+          likesDelta = -1;
+          newHasUpvoted = false;
+        }
+        return {
+          ...post,
+          hasDownvoted: isDownvoting,
+          hasUpvoted: newHasUpvoted,
+          downvotes: (post.downvotes || 0) + downvotesDelta,
+          likes: post.likes + likesDelta
+        };
+      }
+      return post;
+    }));
+  };
+
+  const handleReport = (id: string) => {
+    setDiscussions(prev => prev.map(post => {
+      if (post.id === id) {
+        return { ...post, isReported: true };
       }
       return post;
     }));
@@ -95,14 +136,18 @@ export const Community: React.FC<CommunityProps> = ({ onBack, language, onToggle
       id: Date.now().toString(),
       author: 'Current User',
       authorInitials: 'CU',
+      authorReputation: 10,
       location: 'Your Farm',
       time: 'Just now',
       title: newPostTitle,
       content: newPostContent,
       tags: ['General'],
       likes: 0,
+      downvotes: 0,
       comments: 0,
       hasUpvoted: false,
+      hasDownvoted: false,
+      isReported: false,
     };
 
     if (mediaPreview) {
@@ -134,18 +179,27 @@ export const Community: React.FC<CommunityProps> = ({ onBack, language, onToggle
   };
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-soil">
-      <header className="bg-primary-dark text-white p-4 pt-12 pb-6 rounded-b-[24px] shadow-lg z-10 relative">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-2">
-            <Users size={32} />
-            <div>
-              <h1 className="font-bold text-xl leading-none">Community</h1>
-              <p className="text-xs text-green-200 opacity-90">Peer-to-Peer Advice</p>
+    <div className="flex flex-col min-h-[100dvh] bg-soil w-full">
+      <header className="sticky top-0 bg-primary-dark text-white p-4 pt-10 md:pt-6 pb-6 rounded-b-[24px] md:rounded-b-none shadow-lg z-50 shrink-0 w-full transition-all">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={onBack}
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-sm transition-colors"
+            >
+              <X size={20} className="text-white" />
+            </button>
+            <div className="flex items-center gap-2">
+              <Users size={28} />
+              <div>
+                <h1 className="font-bold text-xl leading-none">Community</h1>
+                <p className="text-xs text-green-200 opacity-90">Peer-to-Peer Advice</p>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="bg-primary rounded-full p-1 flex items-center border border-green-400 relative w-24 h-8 cursor-pointer" onClick={onToggleLanguage}>
+            <div className="bg-primary rounded-full p-1 flex items-center border border-green-400 relative w-24 h-8 cursor-pointer" onClick={() => onToggleLanguage()}>
               <motion.div 
                 className="absolute bg-white rounded-full h-6 w-7 shadow-sm"
                 animate={{ x: language === 'en' ? 0 : language === 'hi' ? 30 : 60 }}
@@ -170,14 +224,15 @@ export const Community: React.FC<CommunityProps> = ({ onBack, language, onToggle
           />
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-green-200" size={20} />
         </div>
+        </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto overscroll-contain pb-32 pt-4 relative" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <main className="flex-1 pb-32 md:pb-12 pt-4 md:pt-8 w-full max-w-7xl mx-auto relative">
         {/* Scheme Finder Banner */}
-        <div className="px-4 mb-6">
+        <div className="px-4 md:px-6 mb-6">
           <button 
             onClick={() => onNavigate('scheme-finder')}
-            className="w-full bg-gradient-to-r from-[#1B5E20] to-[#2E7D32] p-4 rounded-2xl shadow-lg flex items-center justify-between group hover:shadow-xl transition-all"
+            className="w-full bg-gradient-to-r from-[#1B5E20] to-[#2E7D32] p-5 md:p-6 rounded-2xl shadow-lg flex items-center justify-between group hover:shadow-2xl hover:-translate-y-1 transition-all duration-300"
           >
             <div className="flex items-center gap-4">
               <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
@@ -203,26 +258,27 @@ export const Community: React.FC<CommunityProps> = ({ onBack, language, onToggle
           ))}
         </div>
 
-        <div className="flex justify-between items-end px-5 mb-4">
-          <h2 className="text-lg font-bold text-earth">Top Discussions</h2>
+        <div className="flex justify-between items-end px-5 md:px-6 mb-4 mt-6">
+          <h2 className="text-lg md:text-xl font-bold text-earth">Top Discussions</h2>
           <button className="text-primary text-sm font-semibold flex items-center">
             Sort by: Newest <ChevronDown size={16} className="ml-1" />
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-4 pb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 px-4 md:px-6 pb-24 auto-rows-max items-start">
           {filteredDiscussions.length > 0 ? (
             filteredDiscussions.map((post, index) => (
               <motion.article 
                 key={post.id} 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                whileHover={{ scale: 1.01 }}
-                className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-50px" }}
+                transition={{ type: "spring", stiffness: 100, damping: 20, delay: index * 0.05 }}
+                whileHover={{ y: -4, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
+                className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 flex flex-col h-full transform-gpu hover:shadow-xl transition-all duration-300"
               >
-                <div className="p-4">
-                  <div className="flex gap-3">
+                <div className="p-5 flex-1 flex flex-col">
+                  <div className="flex gap-4 items-start">
                     <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold shrink-0 ${
                       post.authorInitials === 'RS' ? 'bg-orange-100 text-orange-700' : 
                       post.authorInitials === 'AS' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
@@ -231,8 +287,19 @@ export const Community: React.FC<CommunityProps> = ({ onBack, language, onToggle
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-bold text-earth text-lg leading-tight mb-1">{post.title}</h3>
-                      <p className="text-xs text-gray-500 mb-2">{post.author} • {post.location} • {post.time}</p>
-                      <p className="text-sm text-gray-700 mb-3 whitespace-pre-wrap">{post.content}</p>
+                      <div className="text-xs text-gray-500 mb-2 flex items-center flex-wrap gap-x-1.5">
+                        <span className="font-semibold text-gray-700">{post.author}</span>
+                        {post.authorBadge && (
+                          <span className="bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded text-[10px] font-bold flex items-center gap-0.5">
+                            <Shield size={10} /> {post.authorBadge}
+                          </span>
+                        )}
+                        {post.authorReputation !== undefined && (
+                          <span className="text-primary font-bold">({post.authorReputation} pts)</span>
+                        )}
+                        <span>• {post.location} • {post.time}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 mb-3 whitespace-pre-wrap break-words">{post.content}</p>
                       
                       {/* Media Rendering */}
                       {post.media && post.media.length > 0 && (
@@ -316,21 +383,38 @@ export const Community: React.FC<CommunityProps> = ({ onBack, language, onToggle
                     </div>
                   </div>
                 </div>
-                <div className="bg-gray-50 px-4 py-2 flex items-center justify-between border-t border-gray-100">
-                  <button 
-                    onClick={() => handleUpvote(post.id)}
-                    className={`flex items-center gap-1.5 transition-colors ${post.hasUpvoted ? 'text-primary' : 'text-gray-600 hover:text-primary'}`}
-                  >
-                    <ThumbsUp size={18} className={post.hasUpvoted ? 'fill-current' : ''} />
-                    <span className="text-xs font-semibold">{post.likes} Helpful</span>
-                  </button>
-                  <button className="flex items-center gap-1.5 text-gray-600 hover:text-primary">
+                <div className="bg-gray-50/80 backdrop-blur-sm px-5 py-3 flex items-center justify-between border-t border-gray-100 mt-auto">
+                  <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-full px-1 py-0.5">
+                    <button 
+                      onClick={() => handleUpvote(post.id)}
+                      className={`flex items-center p-1.5 rounded-full transition-colors ${post.hasUpvoted ? 'text-primary bg-green-50' : 'text-gray-500 hover:text-primary hover:bg-gray-100'}`}
+                    >
+                      <ThumbsUp size={16} className={post.hasUpvoted ? 'fill-current' : ''} />
+                    </button>
+                    <span className="text-xs font-bold text-gray-700 min-w-[20px] text-center">{post.likes - (post.downvotes || 0)}</span>
+                    <button 
+                      onClick={() => handleDownvote(post.id)}
+                      className={`flex items-center p-1.5 rounded-full transition-colors ${post.hasDownvoted ? 'text-red-500 bg-red-50' : 'text-gray-500 hover:text-red-500 hover:bg-gray-100'}`}
+                    >
+                      <ThumbsDown size={16} className={post.hasDownvoted ? 'fill-current' : ''} />
+                    </button>
+                  </div>
+                  <button className="flex items-center gap-1.5 text-gray-600 hover:text-primary ml-1">
                     <MessageSquare size={18} />
-                    <span className="text-xs font-semibold">{post.comments} Comments</span>
+                    <span className="text-xs font-semibold">{post.comments} <span className="hidden sm:inline">Comments</span></span>
                   </button>
-                  <button className="flex items-center gap-1.5 text-gray-400 hover:text-primary">
-                    <Share2 size={18} />
-                  </button>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button 
+                      onClick={() => handleReport(post.id)}
+                      className={`flex items-center gap-1 text-xs font-semibold transition-colors ${post.isReported ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'}`}
+                      title="Report Content"
+                    >
+                      <Flag size={16} className={post.isReported ? 'fill-current' : ''} />
+                    </button>
+                    <button className="flex items-center p-1 text-gray-400 hover:text-primary">
+                      <Share2 size={18} />
+                    </button>
+                  </div>
                 </div>
               </motion.article>
             ))
@@ -343,19 +427,20 @@ export const Community: React.FC<CommunityProps> = ({ onBack, language, onToggle
         </div>
 
         {/* FAB and Voice Bar Container */}
-        <div className="px-5 pb-8 flex flex-col items-end gap-4">
+        <div className="fixed bottom-28 md:bottom-10 right-6 flex flex-col items-end gap-3 z-50">
           <button 
             onClick={() => setIsCreateModalOpen(true)}
-            className="bg-primary hover:bg-primary-dark text-white rounded-full p-4 flex items-center gap-2 shadow-xl transition-transform active:scale-95 self-end"
+            className="bg-primary hover:bg-primary-dark text-white rounded-full p-4 flex items-center gap-2 shadow-2xl transition-transform active:scale-95"
           >
             <Edit3 size={24} />
-            <span className="font-bold pr-1">Ask Community</span>
+            <span className="font-bold pr-1 hidden md:inline">Ask Community</span>
           </button>
-          <div className="w-full flex justify-center">
-            <button className="bg-earth rounded-full h-14 w-14 flex items-center justify-center shadow-lg border-4 border-white hover:scale-105 transition-transform">
-              <Mic className="text-white" size={24} />
-            </button>
-          </div>
+          
+          <button 
+            className="bg-earth hover:bg-earth-dark text-white rounded-full h-14 w-14 flex items-center justify-center shadow-2xl border-2 border-white/20 transition-transform active:scale-95"
+          >
+            <Mic size={24} />
+          </button>
         </div>
       </main>
 

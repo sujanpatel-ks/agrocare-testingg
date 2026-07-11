@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { CropPrice, Language } from '../types';
 import { fetchKarnatakaMarketPrices } from '../services/marketApi';
 import { useTranslation } from 'react-i18next';
+import { ArbitrageAnalyzer } from './ArbitrageAnalyzer';
 
 const WATCHLIST_CROPS = [
   { id: 'w1', name: 'Wheat', nameHi: 'गेहूं', price: 2250, change: 45, changePercent: 2.0, trend: 'up', icon: '🌾' },
@@ -61,6 +62,7 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
   const [sortBy, setSortBy] = useState<SortOption>('none');
   const [showFilters, setShowFilters] = useState(false);
+  const [showArbitrageAnalyzer, setShowArbitrageAnalyzer] = useState(false);
   const [crops, setCrops] = useState<CropPrice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -182,9 +184,16 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
   }, [crops, searchQuery, selectedCategory, priceRange, sortBy]);
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-soil">
+    <div className="flex flex-col min-h-screen bg-soil">
+      {showArbitrageAnalyzer && (
+        <ArbitrageAnalyzer
+          language={language}
+          onClose={() => setShowArbitrageAnalyzer(false)}
+        />
+      )}
+
       {/* Header */}
-      <header className="bg-primary-dark text-white px-5 pt-12 pb-6 rounded-b-[24px] shadow-lg z-20 relative overflow-hidden shrink-0">
+      <header className="bg-primary-dark text-white px-5 pt-20 pb-6 rounded-b-[24px] shadow-lg z-20 relative overflow-hidden shrink-0">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
         <div className="absolute bottom-0 left-0 w-24 h-24 bg-primary/20 rounded-full -ml-12 -mb-12 blur-2xl"></div>
 
@@ -207,6 +216,25 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
 
       {/* Search & Filter */}
       <div className="px-4 pt-4 pb-2 bg-soil sticky top-0 z-10">
+        {/* Arbitrage Analyzer Trigger */}
+        <button
+          onClick={() => setShowArbitrageAnalyzer(true)}
+          className="w-full bg-white rounded-xl p-3 mb-4 flex items-center justify-between border border-orange-100 shadow-sm"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
+              <Store size={16} />
+            </div>
+            <div className="text-left">
+              <div className="text-xs font-black text-gray-900 leading-tight">Find Best Market</div>
+              <div className="text-[10px] font-bold text-orange-500 uppercase tracking-widest mt-0.5">Analyze Arbitrage</div>
+            </div>
+          </div>
+          <div className="bg-orange-500 rounded-full w-6 h-6 flex items-center justify-center text-white">
+            <TrendingUp size={12} />
+          </div>
+        </button>
+        
         <div className="flex gap-2 mb-4">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -319,7 +347,7 @@ export const Market: React.FC<MarketProps> = ({ onBack, onSelectCrop, language }
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 p-4 pb-32 space-y-4">
+      <main className="flex-1 p-4 space-y-4">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <motion.div 

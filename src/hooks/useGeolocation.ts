@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface LocationState {
   latitude: number | null;
@@ -28,21 +28,38 @@ export function useGeolocation(thresholdMeters: number = 5) {
     latitude: null,
     longitude: null,
     error: null,
-    loading: true,
+    loading: false, // Default not loading until explicitly requested
   });
   const lastLocationRef = useRef<{ latitude: number; longitude: number; accuracy: number } | null>(null);
 
-  useEffect(() => {
+  const requestLocation = useCallback(() => {
+    setLocation(prev => ({ ...prev, loading: true, error: null }));
+
     if (!navigator.geolocation) {
       setLocation((prev) => ({
         ...prev,
-        error: 'Geolocation is not supported by your browser',
+        error: 'Geolocation is not supported by your browser.',
         loading: false,
       }));
       return;
     }
 
+    // Fallback timeout in case getCurrentPosition hangs indefinitely
+    const fallbackTimeoutId = setTimeout(() => {
+      setLocation((prev) => {
+        if (prev.loading) {
+          return {
+            ...prev,
+            error: 'Location request timed out or was blocked.',
+            loading: false,
+          };
+        }
+        return prev;
+      });
+    }, 6000);
+
     const handleSuccess = (position: GeolocationPosition) => {
+      clearTimeout(fallbackTimeoutId);
       const { latitude, longitude, accuracy } = position.coords;
       
       const isMoreAccurate = lastLocationRef.current && accuracy < lastLocationRef.current.accuracy;
@@ -51,10 +68,6 @@ export function useGeolocation(thresholdMeters: number = 5) {
         ? getDistance(lastLocationRef.current.latitude, lastLocationRef.current.longitude, latitude, longitude)
         : Infinity;
 
-      // Update if:
-      // 1. We have no previous location
-      // 2. The new location is more accurate (helps refine initial poor GPS locks)
-      // 3. The user has moved more than the threshold
       if (
         !lastLocationRef.current ||
         isMoreAccurate ||
@@ -67,39 +80,42 @@ export function useGeolocation(thresholdMeters: number = 5) {
           error: null,
           loading: false,
         });
+      } else {
+        setLocation(prev => ({ ...prev, loading: false }));
       }
     };
 
     const handleError = (error: GeolocationPositionError) => {
-      // Only set error if we don't have a location yet, to prevent 
-      // temporary signal loss from clearing a known good location.
-      if (!lastLocationRef.current) {
-        setLocation((prev) => ({
-          ...prev,
-          error: error.message,
-          loading: false,
-        }));
+      clearTimeout(fallbackTimeoutId);
+      let errorMessage = error.message || 'An unknown error occurred.';
+      switch (error.code) {
+        case 1: // PERMISSION_DENIED
+          errorMessage = 'Location access denied. Please enable location permissions in your browser.';
+          break;
+        case 2: // POSITION_UNAVAILABLE
+          errorMessage = 'Location information is unavailable based on current network or GPS.';
+          break;
+        case 3: // TIMEOUT
+          errorMessage = 'The request to get user location timed out. Please try again.';
+          break;
       }
+      setLocation((prev) => ({
+        ...prev,
+        error: errorMessage,
+        loading: false,
+      }));
     };
 
-    // Get initial position with high accuracy
     navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
-      enableHighAccuracy: true,
-      maximumAge: 0, // Force fresh position
-      timeout: 15000,
+      enableHighAccuracy: false, // In iframes/preview environments, high accuracy often times out
+      maximumAge: 10000, // Accept cached precision 
+      timeout: 10000, 
     });
+  }, [thresholdMeters]);
 
-    // Watch for real-time updates
-    const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
-      enableHighAccuracy: true,
-      maximumAge: 0, // Force fresh position
-      timeout: 15000,
-    });
+  useEffect(() => {
+    requestLocation();
+  }, [requestLocation]);
 
-    return () => {
-      navigator.geolocation.clearWatch(watchId);
-    };
-  }, []);
-
-  return location;
+  return { ...location, requestLocation };
 }

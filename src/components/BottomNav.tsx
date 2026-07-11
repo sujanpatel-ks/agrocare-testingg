@@ -46,10 +46,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeScreen, onScreenChan
             }
 
             return (
-              <button
+              <motion.button
                 key={item.id}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => onScreenChange(item.id as Screen)}
-                className={`flex flex-col items-center justify-center gap-1.5 w-12 transition-all duration-300 ${
+                aria-label={`Navigate to ${item.label}`}
+                className={`flex flex-col items-center justify-center gap-1.5 w-12 transition-colors duration-300 ${
                   isActive ? 'text-primary' : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
@@ -70,7 +73,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeScreen, onScreenChan
                 <span className={`text-[10px] transition-all duration-300 ${isActive ? 'font-bold opacity-100' : 'font-medium opacity-70'}`}>
                   {item.label}
                 </span>
-              </button>
+              </motion.button>
             );
           })}
         </div>

@@ -14,7 +14,7 @@ import { SoilAnalysis } from './components/SoilAnalysis';
 import { BottomNav } from './components/BottomNav';
 import { DiagnosisResult, diagnoseCrop } from './services/gemini';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Camera } from 'lucide-react';
+import { ArrowLeft, Camera, Sprout } from 'lucide-react';
 import { FileUploader } from './components/FileUploader';
 import { CameraDiagnosis } from './components/CameraDiagnosis';
 import { TASKS as INITIAL_TASKS } from './constants';
@@ -25,7 +25,7 @@ import { LanguageSelector } from './components/LanguageSelector';
 import { useAuth } from './AuthProvider';
 
 export default function App() {
-  const { user, loading, signIn } = useAuth();
+  const { user, loading, isAuthenticating, signIn } = useAuth();
   const { i18n } = useTranslation();
   const [activeScreen, setActiveScreen] = useState<Screen>('home');
   const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
@@ -37,7 +37,36 @@ export default function App() {
   const [supplierSearchQuery, setSupplierSearchQuery] = useState<string | undefined>(undefined);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center h-[100dvh] bg-soil overflow-hidden">
+        <motion.div 
+          animate={{ 
+            scale: [0.9, 1, 0.9],
+            rotate: [0, 5, -5, 0]
+          }}
+          transition={{ 
+            duration: 4, 
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="relative mb-8"
+        >
+          <div className="w-24 h-24 bg-primary rounded-[32px] flex items-center justify-center shadow-2xl shadow-primary/20">
+            <Sprout size={48} color="white" strokeWidth={2.5} />
+          </div>
+          <div className="absolute -inset-4 border-2 border-primary/20 rounded-[40px] animate-ping" />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="text-center"
+        >
+          <h1 className="text-2xl font-black text-earth tracking-tight">AgroCare AI</h1>
+          <p className="text-gray-400 font-bold text-xs uppercase tracking-[0.3em] mt-2">Cultivating Intelligence</p>
+        </motion.div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -46,9 +75,17 @@ export default function App() {
         <h1 className="text-3xl font-black text-earth mb-6">Welcome to AgroCare AI</h1>
         <button 
           onClick={signIn}
-          className="bg-primary text-white font-bold py-4 px-8 rounded-2xl shadow-lg shadow-primary/20 hover:bg-primary-dark transition"
+          disabled={isAuthenticating}
+          className="bg-primary text-white font-bold py-4 px-8 rounded-2xl shadow-lg shadow-primary/20 hover:bg-primary-dark transition disabled:opacity-75 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          Sign in with Google
+          {isAuthenticating && (
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+              className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+            />
+          )}
+          {isAuthenticating ? 'Signing in...' : 'Sign in with Google'}
         </button>
       </div>
     );
@@ -133,6 +170,10 @@ export default function App() {
 
   const handleToggleTask = (id: string) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  };
+
+  const handleToggleUrgentTask = (id: string) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, urgent: !t.urgent } : t));
   };
 
   const handleFileSelect = async (file: File) => {
@@ -302,7 +343,10 @@ export default function App() {
             crop={selectedCrop} 
             onBack={() => setActiveScreen('market')} 
             language={language}
-            onFindSuppliers={() => setActiveScreen('suppliers')}
+            onFindSuppliers={() => {
+              setSupplierSearchQuery(selectedCrop.name);
+              setActiveScreen('suppliers');
+            }}
           />
         ) : null;
       case 'suppliers':
@@ -316,7 +360,7 @@ export default function App() {
       case 'community':
         return <Community onBack={() => setActiveScreen('home')} language={language} onToggleLanguage={toggleLanguage} onNavigate={setActiveScreen} />;
       case 'calendar':
-        return <Calendar tasks={tasks} onToggleTask={handleToggleTask} onAddTask={handleAddTask} onBack={() => setActiveScreen('home')} language={language} />;
+        return <Calendar tasks={tasks} onToggleTask={handleToggleTask} onToggleUrgentTask={handleToggleUrgentTask} onAddTask={handleAddTask} onBack={() => setActiveScreen('home')} language={language} />;
       case 'scan':
         return (
           <div className="flex flex-col min-h-[100dvh] bg-soil p-6 lg:p-12">
@@ -395,9 +439,18 @@ export default function App() {
   return (
     <div className="w-full mx-auto bg-white min-h-[100dvh] relative shadow-[0_0_40px_rgba(0,0,0,0.1)] overflow-x-hidden md:pl-24">
       {/* Global Language Selector */}
-      <div className="absolute top-12 right-6 z-[60]">
-        <LanguageSelector />
-      </div>
+      <AnimatePresence>
+        {(activeScreen === 'home' || activeScreen === 'profile') && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className={`fixed z-[60] top-6 right-6`}
+          >
+            <LanguageSelector />
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       <AnimatePresence mode="wait">
         <motion.div
@@ -406,13 +459,13 @@ export default function App() {
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           exit={{ opacity: 0, y: -10, filter: 'blur(4px)' }}
           transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-          className="min-h-[100dvh] w-full max-w-7xl mx-auto"
+          className={`min-h-[100dvh] w-full max-w-7xl mx-auto ${(activeScreen === 'suppliers' || activeScreen === 'chat' || activeScreen === 'diagnosis' || activeScreen === 'crop-details' || activeScreen === 'soil-analysis') ? '' : 'pb-32 md:pb-0'}`}
         >
           {renderScreen()}
         </motion.div>
       </AnimatePresence>
       
-      {activeScreen !== 'chat' && activeScreen !== 'diagnosis' && activeScreen !== 'crop-details' && activeScreen !== 'soil-analysis' && !isDiagnosing && (
+      {activeScreen !== 'suppliers' && activeScreen !== 'chat' && activeScreen !== 'diagnosis' && activeScreen !== 'crop-details' && activeScreen !== 'soil-analysis' && !isDiagnosing && (
         <BottomNav 
           activeScreen={activeScreen} 
           onScreenChange={(screen) => setActiveScreen(screen)} 

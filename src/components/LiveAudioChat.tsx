@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Mic, MicOff, X, Loader2, Volume2 } from 'lucide-react';
-import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { DiagnosisResult } from '../services/gemini';
 
 interface LiveAudioChatProps {
@@ -16,7 +15,7 @@ export const LiveAudioChat: React.FC<LiveAudioChatProps> = ({ diagnosis, onClose
   const [error, setError] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  const sessionRef = useRef<any>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -30,148 +29,145 @@ export const LiveAudioChat: React.FC<LiveAudioChatProps> = ({ diagnosis, onClose
 
     const initLiveAPI = async () => {
       try {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) throw new Error("API key is missing");
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = `${protocol}//${window.location.host}/api/live-ws`;
 
-        const ai = new GoogleGenAI({ apiKey });
+        const queryParams = new URLSearchParams();
+        if (diagnosis) {
+          queryParams.append('crop', diagnosis.crop || '');
+          queryParams.append('disease', diagnosis.disease || '');
+          queryParams.append('severity', diagnosis.severity || '');
+          queryParams.append('organic', diagnosis.treatment?.organic?.name || '');
+          queryParams.append('chemical', diagnosis.treatment?.chemical?.name || '');
+        }
 
-        const systemInstruction = diagnosis 
-          ? `You are AgroCare AI, an expert agricultural assistant. The user has just scanned a crop and received this diagnosis: Crop: ${diagnosis.crop}, Disease: ${diagnosis.disease}, Severity: ${diagnosis.severity}. Treatment plan: ${diagnosis.treatment.organic.name} (Organic) or ${diagnosis.treatment.chemical.name} (Chemical). Briefly summarize this finding to the user and ask if they have any questions about the treatment or prevention. Keep your responses concise and conversational.`
-          : `You are AgroCare AI, an expert agricultural assistant. Help the user with their farming questions. Keep your responses concise and conversational.`;
+        const ws = new WebSocket(`${wsUrl}?${queryParams.toString()}`);
+        wsRef.current = ws;
 
-        const sessionPromise = ai.live.connect({
-          model: "gemini-3.1-flash-live-preview",
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } },
-            },
-            systemInstruction,
-          },
-          callbacks: {
-            onopen: async () => {
-              if (!isMounted) return;
-              setIsConnecting(false);
-              setIsConnected(true);
+        ws.onopen = async () => {
+          if (!isMounted) return;
+          setIsConnecting(false);
+          setIsConnected(true);
 
-              try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                  audio: { channelCount: 1, sampleRate: 16000 } 
-                });
-                streamRef.current = stream;
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+              audio: { channelCount: 1, sampleRate: 16000 } 
+            });
+            streamRef.current = stream;
 
-                const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-                audioContextRef.current = audioCtx;
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+            audioContextRef.current = audioCtx;
 
-                const source = audioCtx.createMediaStreamSource(stream);
-                const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-                processorRef.current = processor;
+            const source = audioCtx.createMediaStreamSource(stream);
+            const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+            processorRef.current = processor;
 
-                processor.onaudioprocess = (e) => {
-                  if (isMuted) return;
-                  
-                  const inputData = e.inputBuffer.getChannelData(0);
-                  const pcm16 = new Int16Array(inputData.length);
-                  for (let i = 0; i < inputData.length; i++) {
-                    pcm16[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
-                  }
-                  
-                  const buffer = new ArrayBuffer(pcm16.length * 2);
-                  const view = new DataView(buffer);
-                  for (let i = 0; i < pcm16.length; i++) {
-                    view.setInt16(i * 2, pcm16[i], true);
-                  }
-                  
-                  const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-                  
-                  sessionPromise.then((session) => {
-                    session.sendRealtimeInput({
-                      audio: { data: base64, mimeType: 'audio/pcm;rate=16000' }
-                    });
-                  }).catch(console.error);
-                };
-
-                source.connect(processor);
-                processor.connect(audioCtx.destination);
-              } catch (err) {
-                console.error("Mic error:", err);
-                setError("Could not access microphone.");
+            processor.onaudioprocess = (e) => {
+              if (isMuted) return;
+              
+              const inputData = e.inputBuffer.getChannelData(0);
+              const pcm16 = new Int16Array(inputData.length);
+              for (let i = 0; i < inputData.length; i++) {
+                pcm16[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
               }
-            },
-            onmessage: (message: LiveServerMessage) => {
-              if (!isMounted) return;
-
-              // Handle interruption
-              if (message.serverContent?.interrupted) {
-                activeSourcesRef.current.forEach(source => {
-                  try { source.stop(); } catch (e) {}
-                });
-                activeSourcesRef.current = [];
-                if (playbackContextRef.current) {
-                  nextPlayTimeRef.current = playbackContextRef.current.currentTime;
-                }
-                setIsSpeaking(false);
+              
+              const buffer = new ArrayBuffer(pcm16.length * 2);
+              const view = new DataView(buffer);
+              for (let i = 0; i < pcm16.length; i++) {
+                view.setInt16(i * 2, pcm16[i], true);
               }
-
-              // Handle audio output
-              const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-              if (base64Audio) {
-                setIsSpeaking(true);
-                if (!playbackContextRef.current) {
-                  playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-                  nextPlayTimeRef.current = playbackContextRef.current.currentTime;
-                }
-
-                const ctx = playbackContextRef.current;
-                
-                // Decode base64 to Int16
-                const binaryString = atob(base64Audio);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                  bytes[i] = binaryString.charCodeAt(i);
-                }
-                const pcm16 = new Int16Array(bytes.buffer);
-                
-                // Convert to Float32
-                const float32 = new Float32Array(pcm16.length);
-                for (let i = 0; i < pcm16.length; i++) {
-                  float32[i] = pcm16[i] / 32768;
-                }
-
-                const audioBuffer = ctx.createBuffer(1, float32.length, 24000);
-                audioBuffer.getChannelData(0).set(float32);
-
-                const source = ctx.createBufferSource();
-                source.buffer = audioBuffer;
-                source.connect(ctx.destination);
-                
-                const playTime = Math.max(ctx.currentTime, nextPlayTimeRef.current);
-                source.start(playTime);
-                nextPlayTimeRef.current = playTime + audioBuffer.duration;
-                
-                activeSourcesRef.current.push(source);
-                
-                source.onended = () => {
-                  activeSourcesRef.current = activeSourcesRef.current.filter(s => s !== source);
-                  if (activeSourcesRef.current.length === 0) {
-                    setIsSpeaking(false);
-                  }
-                };
+              
+              const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+              
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ audio: base64 }));
               }
-            },
-            onerror: (err) => {
-              console.error("Live API Error:", err);
-              if (isMounted) setError("Connection error occurred.");
-            },
-            onclose: () => {
-              if (isMounted) setIsConnected(false);
-            }
+            };
+
+            source.connect(processor);
+            processor.connect(audioCtx.destination);
+          } catch (err) {
+            console.error("Mic error:", err);
+            setError("Could not access microphone.");
           }
-        });
+        };
 
-        sessionRef.current = await sessionPromise;
+        ws.onmessage = (event) => {
+          if (!isMounted) return;
+
+          try {
+            const message = JSON.parse(event.data);
+
+            // Handle interruption
+            if (message.interrupted) {
+              activeSourcesRef.current.forEach(source => {
+                try { source.stop(); } catch (e) {}
+              });
+              activeSourcesRef.current = [];
+              if (playbackContextRef.current) {
+                nextPlayTimeRef.current = playbackContextRef.current.currentTime;
+              }
+              setIsSpeaking(false);
+            }
+
+            // Handle audio output
+            if (message.audio) {
+              setIsSpeaking(true);
+              if (!playbackContextRef.current) {
+                playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+                nextPlayTimeRef.current = playbackContextRef.current.currentTime;
+              }
+
+              const ctx = playbackContextRef.current;
+              
+              const binaryString = atob(message.audio);
+              const bytes = new Uint8Array(binaryString.length);
+              for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+              }
+              const pcm16 = new Int16Array(bytes.buffer);
+              
+              const float32 = new Float32Array(pcm16.length);
+              for (let i = 0; i < pcm16.length; i++) {
+                float32[i] = pcm16[i] / 32768;
+              }
+
+              const audioBuffer = ctx.createBuffer(1, float32.length, 24000);
+              audioBuffer.getChannelData(0).set(float32);
+
+              const source = ctx.createBufferSource();
+              source.buffer = audioBuffer;
+              source.connect(ctx.destination);
+              
+              const playTime = Math.max(ctx.currentTime, nextPlayTimeRef.current);
+              source.start(playTime);
+              nextPlayTimeRef.current = playTime + audioBuffer.duration;
+              
+              activeSourcesRef.current.push(source);
+              
+              source.onended = () => {
+                activeSourcesRef.current = activeSourcesRef.current.filter(s => s !== source);
+                if (activeSourcesRef.current.length === 0) {
+                  setIsSpeaking(false);
+                }
+              };
+            }
+          } catch (err) {
+            console.error("Error parsing message from live-ws:", err);
+          }
+        };
+
+        ws.onerror = (err) => {
+          console.error("Live WebSocket Error:", err);
+          if (isMounted) setError("Connection error occurred.");
+        };
+
+        ws.onclose = () => {
+          if (isMounted) setIsConnected(false);
+        };
+
       } catch (err) {
-        console.error("Failed to init Live API:", err);
+        console.error("Failed to init Live API WebSocket:", err);
         if (isMounted) {
           setError("Failed to connect to AI.");
           setIsConnecting(false);
@@ -195,11 +191,9 @@ export const LiveAudioChat: React.FC<LiveAudioChatProps> = ({ diagnosis, onClose
       if (playbackContextRef.current && playbackContextRef.current.state !== 'closed') {
         playbackContextRef.current.close().catch(console.error);
       }
-      if (sessionRef.current) {
+      if (wsRef.current) {
         try {
-          // The SDK doesn't expose a direct close method on the session object in the same way,
-          // but we can just let it drop or send a close signal if available.
-          // For now, cleaning up the audio context stops the stream.
+          wsRef.current.close();
         } catch (e) {}
       }
     };

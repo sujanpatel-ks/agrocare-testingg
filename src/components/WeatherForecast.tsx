@@ -27,6 +27,7 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({ forecast, load
     onAddTask({
       title: taskTitle,
       titleHi: day.rainChance > 50 ? 'बारिश की तैयारी करें' : `मौसम कार्य: ${day.day}`,
+      titleKn: day.rainChance > 50 ? 'ಮಳೆಗೆ ಸಿದ್ಧರಾಗಿ' : `ಹವಾಮಾನ ಕಾರ್ಯ: ${day.day}`,
       description: day.advice,
       icon: day.rainChance > 50 ? 'CloudRain' : 'Sun',
       color: day.rainChance > 50 ? 'blue' : 'yellow',

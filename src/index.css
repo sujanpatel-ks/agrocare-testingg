@@ -28,4 +28,10 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* Official Shop Styling for Featured/First Elements */
+  div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(2) > div:nth-of-type(1) {
+    @apply border-amber-300 ring-4 ring-amber-400/10 bg-gradient-to-br from-white to-amber-50/30;
+    box-shadow: 0 20px 40px -20px rgba(217, 119, 6, 0.1), 0 0 0 1px rgba(217, 119, 6, 0.05);
+  }
 }

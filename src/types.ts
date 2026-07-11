@@ -26,8 +26,12 @@ export interface Supplier {
   tags: string[];
   verified: boolean;
   phone: string;
+  address?: string;
   lat?: number;
   lng?: number;
+  originalName?: string;
+  officialNameDiffered?: boolean;
+  nameVerified?: boolean;
 }
 
 export interface PollOption {
@@ -52,6 +56,8 @@ export interface Discussion {
   id: string;
   author: string;
   authorInitials: string;
+  authorReputation?: number;
+  authorBadge?: string;
   location: string;
   time: string;
   title: string;
@@ -61,8 +67,11 @@ export interface Discussion {
   media?: MediaItem[];
   poll?: Poll;
   likes: number;
+  downvotes?: number;
   hasUpvoted?: boolean;
+  hasDownvoted?: boolean;
   comments: number;
+  isReported?: boolean;
 }
 
 export interface Task {
@@ -87,4 +96,7 @@ export interface RecommendedCrop {
   harvest: string;
   icon: string;
   color: string;
+  actionEn: string;
+  actionHi: string;
+  actionKn: string;
 }

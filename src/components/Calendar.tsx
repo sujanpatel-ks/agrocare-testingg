@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Bell, Calendar as CalendarIcon, ChevronRight, Droplets, Bug, Sprout, Camera, Info, Loader2 } from 'lucide-react';
+import { ArrowLeft, Bell, Calendar as CalendarIcon, ChevronRight, Droplets, Bug, Sprout, Camera, Info, Loader2, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TASKS, RECOMMENDED_CROPS } from '../constants';
 import { Task, Language } from '../types';
@@ -11,15 +11,18 @@ interface CalendarProps {
   onBack: () => void;
   tasks: Task[];
   onToggleTask: (id: string) => void;
+  onToggleUrgentTask?: (id: string) => void;
   onAddTask: (task: Omit<Task, 'id' | 'completed'>) => void;
   language: Language;
 }
 
-export const Calendar: React.FC<CalendarProps> = ({ onBack, tasks, onToggleTask, onAddTask, language }) => {
+export const Calendar: React.FC<CalendarProps> = ({ onBack, tasks, onToggleTask, onToggleUrgentTask, onAddTask, language }) => {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [forecast, setForecast] = useState<ForecastDay[]>([]);
   const [weatherLoading, setWeatherLoading] = useState(true);
   const [forecastLoading, setForecastLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'incomplete'>('all');
+  const [urgencyFilter, setUrgencyFilter] = useState<'all' | 'urgent' | 'normal'>('all');
   const { latitude, longitude, loading: locationLoading, error: locationError } = useGeolocation();
 
   useEffect(() => {
@@ -46,6 +49,14 @@ export const Calendar: React.FC<CalendarProps> = ({ onBack, tasks, onToggleTask,
     }
   }, [latitude, longitude, locationLoading, locationError]);
 
+  const filteredTasks = tasks.filter(task => {
+    const statusMatch = statusFilter === 'all' || 
+      (statusFilter === 'completed' ? task.completed : !task.completed);
+    const urgencyMatch = urgencyFilter === 'all' || 
+      (urgencyFilter === 'urgent' ? task.urgent : !task.urgent);
+    return statusMatch && urgencyMatch;
+  });
+
   const currentMonth = new Date().toLocaleString('default', { month: 'short' });
   const months = [];
   for (let i = -2; i <= 2; i++) {
@@ -67,9 +78,9 @@ export const Calendar: React.FC<CalendarProps> = ({ onBack, tasks, onToggleTask,
   };
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-white w-full overflow-x-hidden shadow-2xl">
+    <div className="flex flex-col min-h-screen bg-white w-full overflow-x-hidden shadow-2xl">
       {/* Header */}
-      <header className="flex items-center justify-between px-5 pt-12 pb-4 bg-white sticky top-0 z-20">
+      <header className="flex items-center justify-between px-5 pt-20 pb-4 bg-white sticky top-0 z-20">
         <div className="flex items-center gap-3">
           <button onClick={onBack} className="bg-[#E8F5E9] p-2.5 rounded-2xl text-[#1B5E20] shadow-sm">
             <ArrowLeft size={24} />
@@ -174,7 +185,7 @@ export const Calendar: React.FC<CalendarProps> = ({ onBack, tasks, onToggleTask,
                   <div className={`relative z-10 w-16 h-16 rounded-2xl flex items-center justify-center mr-4 shrink-0 shadow-inner ${crop.color === 'orange' ? 'bg-orange-100' : 'bg-yellow-100'}`}>
                     <span className="text-3xl">{crop.icon}</span>
                   </div>
-                  <div className="flex-1 relative z-10">
+                  <div className="flex-1 relative z-10 w-full">
                     <div className="flex justify-between items-start">
                       <div>
                         <h3 className="font-black text-lg text-earth leading-tight">
@@ -187,16 +198,35 @@ export const Calendar: React.FC<CalendarProps> = ({ onBack, tasks, onToggleTask,
                       </div>
                       <ChevronRight className="text-gray-300" size={20} />
                     </div>
-                    <div className="flex gap-6 mt-4">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] uppercase font-black text-gray-400 tracking-widest">Planting</span>
-                        <span className="text-xs font-black text-earth mt-0.5">{crop.planting}</span>
+                    
+                    <div className="flex flex-col gap-2 mt-4">
+                      <div className="flex items-start gap-2">
+                        <div className="bg-gray-50 p-1.5 rounded-lg text-gray-400 mt-0.5">
+                          <Sprout size={14} />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] uppercase font-black text-gray-400 tracking-widest">Planting</span>
+                          <span className="text-xs font-bold text-earth">{crop.planting}</span>
+                        </div>
                       </div>
-                      <div className="w-px bg-gray-100 h-8"></div>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] uppercase font-black text-gray-400 tracking-widest">Harvest</span>
-                        <span className="text-xs font-black text-earth mt-0.5">{crop.harvest}</span>
+                      <div className="flex items-start gap-2">
+                        <div className="bg-gray-50 p-1.5 rounded-lg text-gray-400 mt-0.5">
+                          <CalendarIcon size={14} />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] uppercase font-black text-gray-400 tracking-widest">Harvest</span>
+                          <span className="text-xs font-bold text-earth">{crop.harvest}</span>
+                        </div>
                       </div>
+                    </div>
+
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <span className="text-[9px] uppercase font-black text-[#1B5E20] bg-[#E8F5E9] px-2 py-0.5 rounded tracking-widest inline-flex items-center gap-1 mb-1.5">
+                        Action for {currentMonth}
+                      </span>
+                      <p className="text-xs text-gray-600 font-medium leading-relaxed">
+                        {language === 'hi' ? crop.actionHi : language === 'kn' ? crop.actionKn : crop.actionEn}
+                      </p>
                     </div>
                   </div>
                 </motion.div>
@@ -213,19 +243,58 @@ export const Calendar: React.FC<CalendarProps> = ({ onBack, tasks, onToggleTask,
             </h2>
             <button className="text-xs font-black text-[#1B5E20] hover:underline">View All</button>
           </div>
+
+          {/* New Filter Options */}
+          <div className="space-y-4 mb-6">
+            <div className="flex flex-col gap-3">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Filter by Status</span>
+              <div className="flex gap-2 p-1 bg-gray-50 rounded-2xl w-fit">
+                {(['all', 'completed', 'incomplete'] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                      statusFilter === s ? 'bg-white text-[#1B5E20] shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-3">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Filter by Urgency</span>
+              <div className="flex gap-2 p-1 bg-gray-50 rounded-2xl w-fit">
+                {(['all', 'urgent', 'normal'] as const).map((u) => (
+                  <button
+                    key={u}
+                    onClick={() => setUrgencyFilter(u)}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                      urgencyFilter === u ? 'bg-white text-[#1B5E20] shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-4">
             <AnimatePresence mode="popLayout">
-              {tasks.map((task, index) => (
-                <motion.label 
+              {filteredTasks.length > 0 ? (
+                filteredTasks.map((task, index) => (
+                <motion.div 
                   layout
                   key={task.id} 
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`flex items-start p-5 rounded-[28px] border transition-all cursor-pointer hover:bg-gray-50 group ${task.urgent ? 'border-l-[6px] border-l-red-500 bg-red-50/30' : 'border-gray-100 bg-white shadow-sm'}`}
+                  className={`flex items-start p-5 rounded-[28px] border transition-all group ${task.urgent ? 'border-l-[6px] border-l-red-500 bg-red-50/30' : 'border-gray-100 bg-white shadow-sm'}`}
                 >
-                  <div className="relative flex items-center justify-center">
+                  <label className="relative flex items-center justify-center cursor-pointer">
                     <input 
                       type="checkbox" 
                       checked={task.completed}
@@ -241,7 +310,7 @@ export const Calendar: React.FC<CalendarProps> = ({ onBack, tasks, onToggleTask,
                         <div className="w-3 h-3 bg-white rounded-full" />
                       </motion.div>
                     )}
-                  </div>
+                  </label>
                   <div className="ml-4 flex-1">
                     <div className="flex items-center gap-3 mb-1.5">
                       <div className={`p-2 rounded-xl shadow-sm transition-transform group-active:scale-90 ${
@@ -258,17 +327,43 @@ export const Calendar: React.FC<CalendarProps> = ({ onBack, tasks, onToggleTask,
                     </div>
                     <p className={`text-xs text-gray-500 leading-relaxed transition-all ${task.completed ? 'opacity-40' : ''}`}>{task.description}</p>
                   </div>
-                  {task.urgent && !task.completed && (
-                    <motion.span 
-                      initial={{ scale: 0.8 }}
-                      animate={{ scale: 1 }}
-                      className="bg-red-500 text-white text-[9px] px-2.5 py-1 rounded-lg font-black uppercase tracking-widest self-start shadow-sm"
+                  <div className="flex flex-col items-end gap-2 ml-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onToggleUrgentTask) onToggleUrgentTask(task.id);
+                      }}
+                      className={`text-[10px] px-2.5 py-1.5 rounded-lg font-black uppercase tracking-widest shadow-sm transition-colors border flex items-center gap-1 ${
+                        task.urgent 
+                          ? 'bg-red-500 text-white border-red-500 hover:bg-red-600' 
+                          : 'bg-white text-gray-400 border-gray-200 hover:text-red-500 hover:border-red-200'
+                      }`}
+                      title={task.urgent ? "Remove Urgent" : "Mark Urgent"}
                     >
+                      <AlertTriangle size={12} className={task.urgent ? "text-white" : "text-gray-400"} />
                       Urgent
-                    </motion.span>
-                  )}
-                </motion.label>
-              ))}
+                    </button>
+                  </div>
+                </motion.div>
+              ))
+            ) : (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="py-12 text-center"
+              >
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CalendarIcon size={24} className="text-gray-300" />
+                </div>
+                <p className="text-sm font-bold text-gray-400">No tasks match your filters</p>
+                <button 
+                  onClick={() => { setStatusFilter('all'); setUrgencyFilter('all'); }}
+                  className="mt-4 text-xs font-black text-primary underline"
+                >
+                  Clear all filters
+                </button>
+              </motion.div>
+            )}
             </AnimatePresence>
           </div>
         </div>

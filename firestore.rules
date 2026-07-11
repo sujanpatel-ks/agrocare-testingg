@@ -38,10 +38,27 @@ service cloud.firestore {
              (!('role' in data) || (data.role in ['user', 'admin']));
     }
 
+    function isValidDiagnosis(data) {
+      return data.keys().hasAll(['userId', 'crop', 'disease', 'confidence', 'severity', 'timestamp']) &&
+             data.userId == request.auth.uid &&
+             data.crop is string && data.crop.size() > 0 && data.crop.size() < 100 &&
+             data.disease is string && data.disease.size() > 0 && data.disease.size() < 100 &&
+             data.confidence is number && data.confidence >= 0 && data.confidence <= 100 &&
+             data.severity in ['Low', 'Medium', 'High'] &&
+             data.timestamp is string &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() < 1000));
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == request.auth.uid;
       allow update: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) && request.resource.data.uid == resource.data.uid;
+      
+      match /diagnoses/{diagnosisId} {
+        allow read, list: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidDiagnosis(request.resource.data);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
     }
   }
 }

@@ -11,12 +11,32 @@
         "role": { "type": "string", "enum": ["user", "admin"], "description": "User role" }
       },
       "required": ["uid", "name", "email"]
+    },
+    "DiagnosisRecord": {
+      "title": "DiagnosisRecord",
+      "description": "A record of a crop diagnosis",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "crop": { "type": "string" },
+        "disease": { "type": "string" },
+        "confidence": { "type": "number" },
+        "severity": { "type": "string", "enum": ["Low", "Medium", "High"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "imageUrl": { "type": "string" },
+        "diagnosis": { "type": "object", "properties": {} }
+      },
+      "required": ["userId", "crop", "disease", "confidence", "severity", "timestamp"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "UserProfile" },
       "description": "User profile documents"
+    },
+    "/users/{userId}/diagnoses/{diagnosisId}": {
+      "schema": { "$ref": "DiagnosisRecord" },
+      "description": "History of diagnoses for a user"
     }
   }
 }
